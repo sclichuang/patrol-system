@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>巡检汇总报告</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: "微软雅黑", "PingFang SC", sans-serif;
+            background: #f0f2f5;
+            padding: 16px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .card {
+            max-width: 500px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.10);
+            padding: 24px 20px 20px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .card-header {
+            text-align: center;
+            padding-bottom: 16px;
+            border-bottom: 2px dashed #d0d0d0;
+            margin-bottom: 16px;
+        }
+        .card-header h1 {
+            font-size: 22px;
+            color: #1a1a2e;
+            letter-spacing: 2px;
+        }
+        .card-header .sub {
+            font-size: 13px;
+            color: #999;
+            margin-top: 4px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #4A90E2;
+            padding-bottom: 6px;
+            border-bottom: 2px dashed #d0d0d0;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 12px;
+            font-size: 14px;
+            color: #333;
+            padding: 0 2px;
+        }
+        .info-grid .full {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .info-grid .label {
+            color: #888;
+            font-weight: normal;
+        }
+        .info-grid .value {
+            font-weight: 500;
+            text-align: right;
+            word-break: break-all;
+        }
+        .info-grid .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .info-grid .value .highlight {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .info-grid .value .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .divider {
+            border: none;
+            border-top: 2px dashed #e0e0e0;
+            margin: 14px 0;
+        }
+        /* ===== 异常卡片（合并后） ===== */
+        .abnormal-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            border-left: 4px solid #e74c3c;
+        }
+        .abnormal-item.done {
+            border-left-color: #27ae60;
+        }
+        .abnormal-item .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .abnormal-item .addr {
+            font-weight: bold;
+            font-size: 15px;
+            color: #1a1a2e;
+        }
+        .abnormal-item .meta {
+            font-size: 13px;
+            color: #666;
+            margin: 6px 0 10px;
+        }
+        .abnormal-item .block {
+            background: #fff;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border: 1px solid #fce4e4;
+        }
+        .abnormal-item .block.result {
+            border-color: #d4edda;
+        }
+        .abnormal-item .block .block-title {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #e74c3c;
+        }
+        .abnormal-item .block.result .block-title {
+            color: #27ae60;
+        }
+        .abnormal-item .block .block-content {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.5;
+            word-break: break-all;
+        }
+        .abnormal-item .block .block-content.pending {
+            color: #999;
+        }
+        .abnormal-item .photo-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+        .abnormal-item .photo-list img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+        }
+        .badge-done {
+            display: inline-block;
+            background: #27ae60;
+            color: #fff;
+            font-size: 12px;
+            padding: 2px 12px;
+            border-radius: 20px;
+        }
+        .badge-pending {
+            display: inline-block;
+            background: #f39c12;
+            color: #fff;
+            font-size: 12px;
+            padding: 2px 12px;
+            border-radius: 20px;
+        }
+        .no-data {
+            text-align: center;
+            color: #999;
+            padding: 30px 0;
+            font-size: 15px;
+        }
+        .action-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 2px dashed #d0d0d0;
+            justify-content: center;
+        }
+        .action-bar .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            flex: 1;
+            min-width: 100px;
+            color: #fff;
+            text-align: center;
+        }
+        .btn-blue { background: #4A90E2; }
+        .btn-green { background: #27ae60; }
+        .btn-gray { background: #95a5a6; }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #4A90E2;
+            color: #4A90E2;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px 0;
+            color: #999;
+            font-size: 16px;
+        }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            max-width: 90%;
+            text-align: center;
+            z-index: 999;
+        }
+        .toast.show { opacity: 1; }
+        .img-preview-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+        }
+        .img-preview-modal.active { display: flex; }
+        .img-preview-modal img {
+            max-width: 100%;
+            max-height: 90vh;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+        .img-preview-modal .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            color: #fff;
+            font-size: 32px;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+        @media (max-width: 420px) {
+            .card { padding: 16px 14px; }
+            .info-grid { font-size: 13px; gap: 4px 8px; }
+            .abnormal-item .block .block-content { font-size: 13px; }
+            .action-bar .btn { font-size: 13px; padding: 10px 14px; min-width: 80px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card" id="cardContainer">
+        <div class="loading" id="loadingState">⏳ 加载中...</div>
+
+        <div id="contentState" style="display:none;">
+            <!-- 头部 -->
+            <div class="card-header">
+                <h1>📋 巡检汇总报告</h1>
+                <div class="sub" id="reportTime">生成时间：--</div>
+            </div>
+
+            <!-- ===== 汇总信息 ===== -->
+            <div class="section">
+                <div class="section-title">📊 汇总信息</div>
+                <div class="info-grid" id="summaryGrid">
+                    <div class="full"><span class="label">公司名称：</span><span class="value" id="sCompany">--</span></div>
+                    <div class="full" id="projectRow"><span class="label">项目名称：</span><span class="value" id="sProject">--</span></div>
+                    <div class="full"><span class="label">巡检人员：</span><span class="value" id="sChecker">--</span></div>
+                    <div class="full"><span class="label">部　　门：</span><span class="value" id="sDept">--</span></div>
+                    <div class="full"><span class="label">巡检时间：</span><span class="value" id="sCheckTime">--</span></div>
+                    <hr class="divider full">
+                    <div class="full stat-row"><span class="label">总点位数：</span><span class="value"><span id="sTotal">0</span> 个</span></div>
+                    <div class="full stat-row"><span class="label">正　　常：</span><span class="value"><span class="success" id="sNormal">0</span> 个</span></div>
+                    <div class="full stat-row"><span class="label">异　　常：</span><span class="value"><span class="highlight" id="sAbnormal">0</span> 个</span></div>
+                    <div class="full stat-row"><span class="label">总 时 长：</span><span class="value"><span id="sDuration">0</span></span></div>
+                </div>
+            </div>
+
+            <hr class="divider">
+
+            <!-- ===== 异常明细（合并处理结果） ===== -->
+            <div class="section" id="abnormalSection">
+                <div class="section-title">⚠️ 异常明细</div>
+                <div id="abnormalList"></div>
+            </div>
+
+            <!-- ===== 操作按钮 ===== -->
+            <div class="action-bar">
+                <button class="btn btn-blue" id="exportExcelBtn">📥 导出Excel</button>
+                <button class="btn btn-green" id="exportPdfBtn">📄 导出PDF</button>
+                <button class="btn btn-outline" id="copyLinkBtn">🔗 复制链接</button>
+                <button class="btn btn-gray" id="closeCardBtn">关闭</button>
+            </div>
+        </div>
+
+        <div class="no-data" id="errorState" style="display:none;">❌ 加载失败，请检查链接是否正确</div>
+    </div>
+
+    <div class="img-preview-modal" id="imgPreviewModal">
+        <button class="close-btn" id="imgPreviewClose">×</button>
+        <img id="imgPreviewSrc" src="" alt="异常照片">
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ============================================================
+        // 1. Supabase 配置
+        // ============================================================
+        const SUPABASE_URL = 'https://szljctcwzewuyxbtotov.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_ziBbcnAQqN_WXjF4S0G_DA_TS91MkpO';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // ============================================================
+        // 2. DOM 引用
+        // ============================================================
+        const loadingState = document.getElementById('loadingState');
+        const contentState = document.getElementById('contentState');
+        const errorState = document.getElementById('errorState');
+
+        const toast = document.getElementById('toast');
+        let toastTimer = null;
+
+        function showToast(msg, isError = false) {
+            toast.textContent = msg;
+            toast.style.background = isError ? '#e74c3c' : '#1e293b';
+            toast.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ============================================================
+        // 3. 工具函数
+        // ============================================================
+        function formatDuration(seconds) {
+            if (!seconds || seconds < 0) return '0秒';
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            if (m === 0) return s + '秒';
+            if (s === 0) return m + '分钟';
+            return m + '分' + s + '秒';
+        }
+
+        function formatTime(ts) {
+            if (!ts) return '--';
+            const d = new Date(ts);
+            return d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0') + ' ' +
+                String(d.getHours()).padStart(2, '0') + ':' +
+                String(d.getMinutes()).padStart(2, '0') + ':' +
+                String(d.getSeconds()).padStart(2, '0');
+        }
+
+        function getCardId() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('id');
+        }
+
+        // ============================================================
+        // 4. 加载数据
+        // ============================================================
+        async function loadCard() {
+            const cardId = getCardId();
+            if (!cardId) {
+                loadingState.style.display = 'none';
+                errorState.style.display = 'block';
+                errorState.textContent = '❌ 缺少汇总ID参数';
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase
+                    .from('patrol_summaries')
+                    .select('*')
+                    .eq('card_id', cardId)
+                    .single();
+
+                if (error || !data) {
+                    throw new Error('未找到该汇总记录');
+                }
+
+                loadingState.style.display = 'none';
+                contentState.style.display = 'block';
+                renderCard(data);
+
+            } catch (err) {
+                console.error(err);
+                loadingState.style.display = 'none';
+                errorState.style.display = 'block';
+                errorState.textContent = '❌ ' + err.message;
+            }
+        }
+
+        // ============================================================
+        // 5. 渲染卡片（合并版）
+        // ============================================================
+        function renderCard(data) {
+            // 汇总信息
+            document.getElementById('reportTime').textContent = '生成时间：' + formatTime(data.created_at || data.check_time);
+            document.getElementById('sCompany').textContent = data.company || '--';
+            document.getElementById('sChecker').textContent = data.checker || '--';
+            document.getElementById('sDept').textContent = data.department || '--';
+            document.getElementById('sCheckTime').textContent = data.check_time ? formatTime(data.check_time) : '--';
+            document.getElementById('sTotal').textContent = data.total_points || 0;
+            document.getElementById('sNormal').textContent = data.normal_count || 0;
+            document.getElementById('sAbnormal').textContent = data.abnormal_count || 0;
+            document.getElementById('sDuration').textContent = formatDuration(data.duration_seconds || 0);
+
+            // 项目名称为空时隐藏该行
+            var projectName = data.project_name || '';
+            var projectRow = document.getElementById('projectRow');
+            if (projectName.trim()) {
+                document.getElementById('sProject').textContent = projectName;
+                projectRow.style.display = 'flex';
+            } else {
+                projectRow.style.display = 'none';
+            }
+
+            // ===== 异常明细（合并处理结果） =====
+            const abnormalList = data.abnormal_list || [];
+            const abnormalContainer = document.getElementById('abnormalList');
+
+            if (abnormalList.length === 0) {
+                abnormalContainer.innerHTML = '<div class="no-data" style="padding:10px 0;">✅ 本次巡检无异常</div>';
+            } else {
+                let html = '';
+                abnormalList.forEach((item) => {
+                    const hasResult = item.result_note && item.result_note.trim();
+                    const itemClass = hasResult ? 'abnormal-item done' : 'abnormal-item';
+                    
+                    // 异常照片
+                    let photosHtml = '';
+                    if (item.photos && item.photos.length > 0) {
+                        photosHtml = '<div class="photo-list">';
+                        item.photos.forEach(ph => {
+                            photosHtml += `<img src="${ph}" onclick="previewImage('${ph}')" alt="异常照片">`;
+                        });
+                        photosHtml += '</div>';
+                    }
+
+                    html += `
+                        <div class="${itemClass}">
+                            <div class="header">
+                                <span class="addr">📍 ${item.address || '未知点位'}</span>
+                                ${hasResult ? '<span class="badge-done">✅ 已完成</span>' : '<span class="badge-pending">⏳ 待处理</span>'}
+                            </div>
+                            <div class="meta">发现人：${item.checker || '--'} ｜ 时间：${item.check_time || '--'}</div>
+                            
+                            <div class="block">
+                                <div class="block-title">🔴 异常情况</div>
+                                <div class="block-content">${item.note || '未填写异常说明'}</div>
+                                ${photosHtml}
+                            </div>
+                            
+                            <div class="block result">
+                                <div class="block-title">✅ 处理结果</div>
+                                ${hasResult 
+                                    ? `<div class="block-content">${item.result_note}</div>
+                                       <div style="font-size:12px;color:#999;margin-top:4px;">处理人：${item.result_checker || '系统'} ｜ 时间：${item.result_time || '--'}</div>`
+                                    : `<div class="block-content pending">等待处理中...</div>`
+                                }
+                            </div>
+                        </div>
+                    `;
+                });
+                abnormalContainer.innerHTML = html;
+            }
+
+            window._cardData = data;
+        }
+
+        // ============================================================
+        // 6. 图片预览
+        // ============================================================
+        function previewImage(src) {
+            const modal = document.getElementById('imgPreviewModal');
+            const img = document.getElementById('imgPreviewSrc');
+            img.src = src;
+            modal.classList.add('active');
+        }
+
+        document.getElementById('imgPreviewClose').addEventListener('click', function() {
+            document.getElementById('imgPreviewModal').classList.remove('active');
+        });
+        document.getElementById('imgPreviewModal').addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('active');
+        });
+
+        // ============================================================
+        // 7. 导出 Excel
+        // ============================================================
+        document.getElementById('exportExcelBtn').addEventListener('click', function() {
+            const data = window._cardData;
+            if (!data) { showToast('暂无数据可导出', true); return; }
+
+            const abnormalList = data.abnormal_list || [];
+            const rows = [
+                ['巡检汇总报告'],
+                ['公司名称', data.company || '--'],
+                ['项目名称', data.project_name || '--'],
+                ['巡检人员', data.checker || '--'],
+                ['部门', data.department || '--'],
+                ['巡检时间', data.check_time ? formatTime(data.check_time) : '--'],
+                ['总点位数', data.total_points || 0],
+                ['总时长', formatDuration(data.duration_seconds || 0)],
+                ['正常', data.normal_count || 0],
+                ['异常', data.abnormal_count || 0],
+                [],
+                ['异常明细'],
+                ['序号', '点位地址', '发现人', '发现时间', '异常说明', '处理结果', '处理人', '处理时间']
+            ];
+
+            if (abnormalList.length === 0) {
+                rows.push(['无异常']);
+            } else {
+                abnormalList.forEach((item, idx) => {
+                    rows.push([
+                        idx + 1,
+                        item.address || '--',
+                        item.checker || '--',
+                        item.check_time || '--',
+                        item.note || '--',
+                        item.result_note || '--',
+                        item.result_checker || '--',
+                        item.result_time || '--'
+                    ]);
+                });
+            }
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            ws['!cols'] = [
+                { wch: 8 }, { wch: 20 }, { wch: 12 },
+                { wch: 20 }, { wch: 30 }, { wch: 30 }, { wch: 12 }, { wch: 20 }
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, '巡检汇总');
+            XLSX.writeFile(wb, `巡检汇总_${data.checker || 'unknown'}_${Date.now()}.xlsx`);
+            showToast('✅ Excel导出成功');
+        });
+
+        // ============================================================
+        // 8. 导出 PDF
+        // ============================================================
+        document.getElementById('exportPdfBtn').addEventListener('click', function() {
+            const data = window._cardData;
+            if (!data) { showToast('暂无数据可导出', true); return; }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = 210;
+            const margin = 16;
+            let y = 20;
+            const lineHeight = 6;
+
+            function text(txt, x = margin, yPos = y, fontSize = 11, align = 'left') {
+                doc.setFontSize(fontSize);
+                doc.text(txt, x, yPos, { align: align });
+                return yPos + lineHeight;
+            }
+
+            function textBold(txt, x = margin, yPos = y, fontSize = 11) {
+                doc.setFontSize(fontSize);
+                doc.setFont('helvetica', 'bold');
+                doc.text(txt, x, yPos);
+                doc.setFont('helvetica', 'normal');
+                return yPos + lineHeight;
+            }
+
+            y = textBold('📋 巡检汇总报告', margin, y, 16);
+            y += 2;
+            y = text('生成时间：' + formatTime(data.created_at || data.check_time), margin, y, 10);
+            y += 4;
+
+            y = textBold('📊 汇总信息', margin, y, 12);
+            const infoItems = [
+                ['公司名称', data.company || '--'],
+                ['项目名称', data.project_name || '--'],
+                ['巡检人员', data.checker || '--'],
+                ['部门', data.department || '--'],
+                ['巡检时间', data.check_time ? formatTime(data.check_time) : '--'],
+                ['总点位数', (data.total_points || 0) + ' 个'],
+                ['正常', (data.normal_count || 0) + ' 个'],
+                ['异常', (data.abnormal_count || 0) + ' 个'],
+                ['总时长', formatDuration(data.duration_seconds || 0)]
+            ];
+            infoItems.forEach(item => {
+                y = text(item[0] + '：' + item[1], margin + 4, y, 10);
+            });
+            y += 4;
+
+            const abnormalList = data.abnormal_list || [];
+            y = textBold('⚠️ 异常明细（共' + abnormalList.length + '个）', margin, y, 12);
+            if (abnormalList.length === 0) {
+                y = text('✅ 无异常', margin + 4, y, 10);
+            } else {
+                abnormalList.forEach((item, idx) => {
+                    if (y > 270) { doc.addPage(); y = 20; }
+                    const status = (item.result_note && item.result_note.trim()) ? '✅ 已完成' : '⏳ 待处理';
+                    y = textBold((idx + 1) + '. ' + (item.address || '未知点位') + '  ' + status, margin + 4, y, 10);
+                    y = text('   发现人：' + (item.checker || '--') + '  ｜  时间：' + (item.check_time || '--'), margin + 4, y, 9);
+                    const note = '   异常说明：' + (item.note || '未填写');
+                    const lines = doc.splitTextToSize(note, pageWidth - margin * 2 - 8);
+                    lines.forEach(line => { y = text(line, margin + 4, y, 9); });
+                    if (item.result_note) {
+                        const res = '   处理结果：' + item.result_note;
+                        const resLines = doc.splitTextToSize(res, pageWidth - margin * 2 - 8);
+                        resLines.forEach(line => { y = text(line, margin + 4, y, 9); });
+                    }
+                    y += 2;
+                });
+            }
+            y += 4;
+            y = text('—— 报告结束 ——', pageWidth / 2, y + 4, 10, 'center');
+
+            doc.save(`巡检汇总_${data.checker || 'unknown'}_${Date.now()}.pdf`);
+            showToast('✅ PDF导出成功');
+        });
+
+        // ============================================================
+        // 9. 复制链接
+        // ============================================================
+        document.getElementById('copyLinkBtn').addEventListener('click', function() {
+            const url = window.location.href;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showToast('✅ 链接已复制');
+                }).catch(() => {
+                    fallbackCopy(url);
+                });
+            } else {
+                fallbackCopy(url);
+            }
+        });
+
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast('✅ 链接已复制');
+            } catch (e) {
+                showToast('❌ 复制失败，请手动复制', true);
+            }
+            document.body.removeChild(ta);
+        }
+
+        // ============================================================
+        // 10. 关闭
+        // ============================================================
+        document.getElementById('closeCardBtn').addEventListener('click', function() {
+            window.close();
+        });
+
+        // ============================================================
+        // 11. 启动
+        // ============================================================
+        loadCard();
+    </script>
+</body>
+</html>

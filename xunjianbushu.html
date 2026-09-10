@@ -1,0 +1,3216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>二维码巡检系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js">
+    </script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+        body{font-family:"微软雅黑","PingFang SC",sans-serif;background:#f5f5f5;min-height:100vh;-webkit-tap-highlight-color:transparent}
+        .page{display:none;padding:20px;max-width:500px;margin:0 auto;min-height:100vh;background:#f5f5f5}
+        .page.active{display:block}
+        .page-header{display:flex;align-items:center;margin-bottom:20px;gap:10px}
+        .back-btn{background:#95a5a6;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:15px;flex-shrink:0}
+        .page-title{font-size:20px;font-weight:bold;color:#333;flex:1;text-align:center}
+        .home-header{background:linear-gradient(180deg,#4A90E2 0%,#357ABD 100%);color:#fff;padding:22px;border-radius:15px;margin-bottom:20px;text-align:center;cursor:pointer}
+        .home-header h1{font-size:24px}
+        .company-photo-container{width:100%;max-width:400px;margin:0 auto 20px;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.1);aspect-ratio:2/1;display:flex;align-items:center;justify-content:center}
+        .company-photo-container img{width:100%;height:100%;object-fit:cover}
+        .company-photo-placeholder{color:#999;font-size:14px;text-align:center;padding:20px}
+        .form-group{margin-bottom:16px}
+        .form-group label{display:block;margin-bottom:6px;color:#555;font-size:15px;font-weight:bold}
+        .form-group input,.form-group select{width:100%;padding:14px;border:2px solid #ddd;border-radius:8px;font-size:16px;outline:none;background:#fff}
+        .btn{width:100%;padding:16px;border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:12px;white-space:nowrap}
+        .btn-primary{background:#4A90E2;color:#fff}
+        .btn-success{background:#52c41a;color:#fff}
+        .btn-danger{background:#ff4d4f;color:#fff}
+        .btn-warning{background:#faad14;color:#fff}
+        .btn-secondary{background:#95a5a6;color:#fff}
+        .btn-info{background:linear-gradient(135deg,#3498db,#2980b9);color:#fff}
+        .btn:active{transform:scale(.95)}
+        .btn:disabled{opacity:.5}
+        .btn-sm{padding:6px 12px;font-size:13px;border-radius:6px;width:auto;margin-bottom:0;display:inline-block}
+        .patrol-header{background:#fff;padding:16px;border-radius:10px;margin-bottom:15px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+        .patrol-header h3{font-size:16px;margin-bottom:10px;color:#333}
+        .progress-bar{width:100%;height:12px;background:#eee;border-radius:6px;overflow:hidden;margin:10px 0}
+        .progress-fill{height:100%;background:#4A90E2;transition:width .3s}
+        .progress-text{text-align:center;font-size:14px;color:#555}
+        .scanner-container{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);margin-bottom:15px}
+        #qr-reader,#config-qr-reader{width:100%;border-radius:8px;overflow:hidden}
+        #qr-reader video,#config-qr-reader video{border-radius:8px;width:100%!important;height:auto!important}
+        .record-list{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);margin-bottom:15px;max-height:320px;overflow-y:auto}
+        .record-item{padding:12px 0;border-bottom:1px solid #eee;font-size:14px;cursor:pointer}
+        .record-item:last-child{border-bottom:none}
+        .record-status{font-weight:bold}
+        .record-status.normal{color:#27ae60}
+        .record-status.abnormal{color:#e74c3c}
+        .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000}
+        .modal.active{display:flex}
+        .modal-content{background:#fff;padding:25px 20px;border-radius:15px;width:90%;max-width:400px;text-align:center;max-height:85vh;overflow-y:auto}
+        .modal-content h3{margin-bottom:15px;font-size:20px}
+        .modal-content p{margin-bottom:20px;font-size:15px;color:#555}
+        .modal-buttons{display:flex;gap:10px;flex-wrap:wrap}
+        .modal-buttons .btn{flex:1;padding:12px 24px;font-size:15px;margin-bottom:0;min-width:80px}
+        textarea{width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:15px;resize:vertical;min-height:70px;outline:none;margin-bottom:15px;background:#fff}
+        .admin-menu{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);margin-bottom:15px}
+        .menu-item{display:flex;align-items:center;padding:16px;border-bottom:1px solid #eee;cursor:pointer}
+        .menu-item:last-child{border-bottom:none}
+        .menu-item:active{background:#f0f0f0}
+        .menu-icon{font-size:26px;margin-right:15px}
+        .menu-text{font-size:17px;font-weight:bold;color:#333;flex:1}
+        .menu-arrow{color:#999;font-size:20px}
+        .list-container{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);margin-bottom:15px;max-height:400px;overflow-y:auto}
+        .list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed #ccc;gap:8px}
+        .list-item:last-child{border-bottom:none}
+        .list-info{flex:1;font-size:15px;word-break:break-all;color:#333;cursor:pointer}
+        .list-count{text-align:center;color:#4A90E2;font-weight:bold;margin-bottom:10px;font-size:15px}
+        .user-list-header{display:flex;align-items:center;padding:10px 16px;background:#fafafa;border-bottom:2px solid #f0f0f0;font-size:13px;color:#8c8c8c;font-weight:bold}
+        .user-item{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer}
+        .user-item:active{background:#f5f5f5}
+        .header-number,.user-number{width:50px;flex-shrink:0}
+        .header-name,.user-name{flex:1;font-size:15px;color:#262626}
+        .header-dept,.user-dept{width:80px;flex-shrink:0;text-align:right}
+        .user-dept{font-size:14px;color:#4A90E2}
+        .user-number{font-size:12px;color:#8c8c8c}
+        .department-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:15px}
+        .dept-tab{padding:8px 0;border-radius:20px;border:2px solid #d9d9d9;background:#fff;cursor:pointer;font-size:14px;font-weight:bold;color:#8c8c8c;flex:0 0 calc(25% - 6px);text-align:center;transition:all .2s}
+        .dept-tab.active{background:#4A90E2;color:#fff;border-color:#4A90E2}
+        .edit-modal-input{width:100%;padding:14px;border:2px solid #ddd;border-radius:8px;font-size:16px;outline:none;margin-bottom:15px;background:#fff}
+        .qr-display{display:flex;flex-direction:column;align-items:center;gap:10px;margin:15px 0}
+        .qr-image{display:flex;align-items:center;justify-content:center;background:#fff;padding:10px;border-radius:8px}
+        .qr-image img{width:280px;height:auto}
+        .qr-info{font-size:15px;font-weight:bold;color:#333;text-align:center}
+        .crop-container{position:relative;width:100%;max-height:400px;overflow:hidden;margin-bottom:15px;background:#f0f0f0;border-radius:8px}
+        .crop-container img{width:100%;display:block}
+        .crop-overlay{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move}
+        .crop-resize-handle{position:absolute;width:24px;height:24px;background:#fff;border:2px solid #667eea;border-radius:50%;right:-12px;bottom:-12px;cursor:se-resize}
+        .abnormal-photos{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:15px;max-width:120px}
+        .abnormal-photo-item{position:relative;aspect-ratio:1;background:#f0f0f0;border-radius:8px;overflow:hidden}
+        .abnormal-photo-item img{width:100%;height:100%;object-fit:cover}
+        .abnormal-photo-add{display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px dashed #ddd;border-radius:8px;aspect-ratio:1;font-size:24px;color:#999;padding:10px}
+        .abnormal-photo-remove{position:absolute;top:6px;right:6px;width:28px;height:28px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+        .summary-image-container{background:#fff;padding:12px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);margin-bottom:12px;overflow-x:auto}
+        .summary-image-container img{width:100%;height:auto;display:block}
+        input[type="file"]{display:none!important}
+        .add-row{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+        .add-row input{width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:15px;outline:none}
+        .add-row .input-row{display:flex;gap:8px;width:100%}
+        .add-row .input-row select{flex:1;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:15px;outline:none;background:#fff}
+        .add-row .input-row .btn{flex:0 0 130px;padding:12px 0;width:auto;margin-bottom:0;font-size:15px;border-radius:8px;background:#52c41a;color:#fff}
+        .divider-dashed{border:none;border-top:2px dashed #ccc;margin:12px 0 16px 0}
+        .dept-btn-group{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+        .dept-btn{padding:8px 0;border-radius:20px;border:2px solid #d9d9d9;background:#fff;cursor:pointer;font-size:14px;font-weight:bold;color:#8c8c8c;flex:0 0 calc(25% - 6px);text-align:center;transition:all .2s}
+        .dept-btn.active{background:#4A90E2;color:#fff;border-color:#4A90E2}
+        .dept-btn:active{transform:scale(.95)}
+        .point-actions{display:flex;gap:6px;flex-shrink:0}
+        .point-actions .btn-sm{padding:4px 10px;font-size:14px;border-radius:6px;cursor:pointer;border:none;color:#fff}
+        .btn-qr{background:transparent;font-size:20px;border:none;padding:0;cursor:pointer}
+        .section-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:2px dashed #ccc;margin-bottom:10px;flex-wrap:wrap;gap:6px}
+        .section-title{font-size:16px;font-weight:bold;color:#333}
+        .section-title .count{color:#999;font-weight:normal;font-size:14px}
+        .btn-global-qr{padding:6px 14px;background:#4A90E2;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;white-space:nowrap}
+        .btn-global-qr:active{transform:scale(.95)}
+        #cancel-scan-btn,#cancel-abnormal-btn,#cancel-edit-record-btn,#cancel-edit-point-btn{display:none!important}
+        #later-abnormal-btn{display:block!important;visibility:visible!important}
+        /* 隐藏后台管理按钮 */
+        #admin-btn { display: none !important; }
+        /* 双击提示 */
+        .home-header { position: relative; }
+        .home-header:active { opacity: 0.8; }
+        .double-tip { font-size: 12px; opacity: 0.6; margin-top: 4px; display: block; }
+    </style>
+</head>
+<body>
+
+<div class="page active" id="home-page">
+    <div class="home-header" id="home-header">
+        <h1>📱 二维码巡检系统</h1>
+    </div>
+    
+    <div class="form-group"><label>选择姓名</label><select id="name-select"><option value="">请选择姓名</option></select></div>
+    <div class="form-group"><label>部门</label><input type="text" id="department-input" placeholder="选择姓名后自动带出" readonly></div>
+    <button class="btn btn-primary" id="start-patrol-btn">开始巡检</button>
+    <button class="btn btn-warning" id="scan-config-btn">扫描配置</button>
+    <!-- 后台管理按钮已隐藏，通过双击标题进入 -->
+    <button class="btn btn-danger" id="admin-btn" style="display:none;">🔐 后台管理</button>
+</div>
+
+<div class="page" id="patrol-page">
+    <div class="patrol-header"><h3 id="patrol-user-info"></h3><div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div><div class="progress-text" id="progress-text">0/0 点位已扫描</div></div>
+    <button class="btn btn-primary" id="start-scan-btn">📷 开始扫码</button>
+    <div class="scanner-container" id="scanner-container" style="display:none;"><div id="qr-reader"></div></div>
+    
+    <div class="record-list" id="record-list"><p style="text-align:center;color:#999;">暂无扫描记录</p></div>
+    <button class="btn btn-success" id="finish-patrol-btn" disabled>完成巡检</button>
+    <button class="btn btn-danger" id="exit-patrol-btn">退出巡检</button>
+</div>
+
+<div class="page" id="scan-config-page">
+    <div class="page-header"><button class="back-btn" id="scan-config-back-btn">返回</button><div class="page-title">📱 扫描配置</div></div>
+    <p style="text-align:center;color:#666;margin-bottom:15px;">扫描配置二维码以更新点位或人员数据</p>
+    <div class="scanner-container"><div id="config-qr-reader"></div></div>
+    
+    <button class="btn btn-secondary" id="stop-config-scan-btn">停止扫描</button>
+</div>
+
+<div class="page" id="admin-page">
+    <div class="page-header"><div class="page-title">🔐 管理中心</div></div>
+    <div id="login-panel"><div class="form-group"><label>管理员密码</label><input type="password" id="admin-password-input" placeholder="请输入密码"></div><button class="btn btn-primary" id="admin-login-btn">登录</button></div>
+    <div id="admin-menu" style="display:none;">
+        <div class="admin-menu">
+            <div class="menu-item" id="menu-points"><span class="menu-icon">📍</span><span class="menu-text">点位管理</span><span class="menu-arrow">›</span></div>
+            <div class="menu-item" id="menu-departments"><span class="menu-icon">🏢</span><span class="menu-text">部门管理</span><span class="menu-arrow">›</span></div>
+            <div class="menu-item" id="menu-users"><span class="menu-icon">👥</span><span class="menu-text">人员管理</span><span class="menu-arrow">›</span></div>
+            <div class="menu-item" id="menu-company"><span class="menu-icon">🏢</span><span class="menu-text">公司名称</span><span class="menu-arrow">›</span></div>
+            
+            <div class="menu-item" id="menu-summary"><span class="menu-icon">📋</span><span class="menu-text">汇总记录</span><span class="menu-arrow">›</span></div>
+            <div class="menu-item" id="menu-password"><span class="menu-icon">🔑</span><span class="menu-text">修改密码</span><span class="menu-arrow">›</span></div>
+        </div>
+        <button class="btn btn-secondary" id="admin-logout-btn">退出登录</button>
+    </div>
+</div>
+
+<div class="page" id="points-page">
+    <div class="page-header"><button class="back-btn" id="points-back-btn">返回</button><div class="page-title">📍 点位管理</div></div>
+    <div class="add-row"><input type="text" id="point-address-input" placeholder="请输入点位地址"><div class="input-row"><select id="point-dept-select"><option value="">选择部门</option></select><button class="btn btn-success" id="add-point-btn">添加</button></div></div>
+    <hr class="divider-dashed">
+    <div class="dept-btn-group" id="point-dept-btn-group"></div>
+    <div class="list-container" id="point-detail-container"><p style="text-align:center;color:#999;">请选择上方部门查看点位</p></div>
+</div>
+
+<div class="page" id="departments-page">
+    <div class="page-header"><button class="back-btn" id="departments-back-btn">返回</button><div class="page-title">🏢 部门管理</div></div>
+    <div class="form-group"><input type="text" id="department-name-input" placeholder="请输入部门名称"></div>
+    <button class="btn btn-success" id="add-department-btn">添加部门</button>
+    <div class="list-container"><div id="department-list"></div></div>
+</div>
+
+<div class="page" id="users-page">
+    <div class="page-header"><button class="back-btn" id="users-back-btn">返回</button><div class="page-title">👥 人员管理</div></div>
+    <div class="form-group"><input type="text" id="user-name-input" placeholder="请输入姓名"></div>
+    <div class="form-group"><select id="user-department-input"><option value="">请选择部门</option></select></div>
+    <button class="btn btn-success" id="add-user-btn">添加人员</button>
+    <div class="department-tabs" id="department-tabs"></div>
+    <div class="list-container"><div id="user-list"></div></div>
+</div>
+
+
+
+<div class="page" id="password-page">
+    <div class="page-header"><button class="back-btn" id="password-back-btn">返回</button><div class="page-title">🔑 修改密码</div></div>
+    <div class="form-group"><label>当前密码</label><input type="password" id="current-password-input" placeholder="请输入当前密码"></div>
+    <div class="form-group"><label>新密码</label><input type="password" id="new-password-input" placeholder="请输入新密码（至少6位）"></div>
+    <div class="form-group"><label>确认新密码</label><input type="password" id="confirm-password-input" placeholder="请再次输入新密码"></div>
+    <button class="btn btn-danger" id="change-password-btn">确认修改</button>
+</div>
+
+<div class="page" id="summary-list-page">
+    <div class="page-header"><button class="back-btn" id="summary-back-btn">返回</button><div class="page-title">📋 汇总记录</div></div>
+    <div class="list-container" id="summary-list-container"><p style="text-align:center;color:#999;">加载中...</p></div>
+</div>
+
+<!-- ===== 所有弹窗 ===== -->
+<div class="modal" id="qr-modal"><div class="modal-content"><h3 id="qr-modal-title">二维码</h3><div class="qr-display"><div id="qr-code-display" class="qr-image"></div><div class="qr-info" id="qr-info"></div></div><div class="modal-buttons"><button class="btn btn-primary" id="save-qr-btn">💾 保存到相册</button><button class="btn btn-secondary" id="close-qr-btn">关闭</button></div></div></div>
+<div class="modal" id="scan-modal"><div class="modal-content"><h3>📍 点位确认</h3><p id="scan-modal-address"></p><div class="modal-buttons"><button class="btn btn-success" id="normal-btn">正常</button><button class="btn btn-danger" id="abnormal-btn">异常</button></div></div></div>
+<div class="modal" id="abnormal-modal"><div class="modal-content" style="max-width:95%;text-align:left;"><h3 style="text-align:center;">⚠️ 填写异常情况</h3><p style="font-weight:bold;margin:5px 0;">异常情况：</p><textarea id="abnormal-note" placeholder="请描述异常情况..." style="width:100%;height:80px;margin-bottom:10px;"></textarea><p style="font-weight:bold;margin:5px 0;">异常照片：</p><div id="abnormal-photos" style="margin-bottom:10px;"><div id="add-abnormal-photo" style="width:100%;aspect-ratio:1;border:2px dashed #ddd;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#999;cursor:pointer;">+</div></div><input type="file" id="abnormal-photo-input" accept="image/jpeg,image/png"><p style="font-weight:bold;margin:5px 0;">处理结果：</p><textarea id="result-note" placeholder="请填写处理结果..." style="width:100%;height:80px;margin-bottom:10px;"></textarea><div style="display:flex;gap:10px;margin-top:15px;"><button type="button" class="btn btn-danger" id="confirm-abnormal-btn" style="flex:1;margin-bottom:0;">确认异常</button><button type="button" class="btn btn-warning" id="later-abnormal-btn" style="flex:1;margin-bottom:0;">稍后填写</button></div></div></div>
+<div class="modal" id="edit-modal"><div class="modal-content"><h3 id="edit-modal-title">编辑</h3><input type="text" id="edit-input-1" class="edit-modal-input" placeholder=""><input type="text" id="edit-input-2" class="edit-modal-input" placeholder="" style="display:none;"><div class="modal-buttons"><button class="btn btn-primary" id="save-edit-btn">保存</button></div></div></div>
+<div class="modal" id="camera-modal"><div class="modal-content"><h3>📸 现场拍照 对准点位</h3><div style="width:100%;max-width:300px;margin:0 auto;border-radius:10px;overflow:hidden;"><video id="camera-preview" autoplay playsinline style="width:100%;border-radius:10px;"></video></div><div class="modal-buttons" style="margin-top:15px;"><button class="btn btn-primary" id="capture-btn">拍摄</button></div></div></div>
+<div class="modal" id="edit-record-modal"><div class="modal-content"><h3>✏️ 编辑巡检记录</h3><p id="edit-record-address" style="font-weight:bold;color:#333;"></p><p style="text-align:left;font-weight:bold;margin-bottom:5px;color:#e74c3c;">⚠️ 当前状态：异常</p><p style="text-align:left;font-weight:bold;margin-bottom:5px;">异常说明：</p><textarea id="edit-record-note" placeholder="请描述异常情况..." style="min-height:80px;"></textarea><p style="text-align:left;font-weight:bold;margin-bottom:5px;">异常照片：</p><div class="abnormal-photos" id="edit-record-photos" style="max-width:100%;"><div class="abnormal-photo-add" id="add-edit-photo" style="width:100%;aspect-ratio:1;max-width:100%;">+</div></div><input type="file" id="edit-photo-input" accept="image/jpeg,image/png"><p style="text-align:left;font-weight:bold;margin-bottom:5px;">处理结果：</p><textarea id="edit-record-result" placeholder="请填写处理结果..." style="min-height:60px;"></textarea><div class="modal-buttons" style="margin-top:15px;"><button class="btn btn-primary" id="save-record-btn">保存</button></div></div></div>
+<div class="modal" id="summary-modal"><div class="modal-content" style="max-width:92%;max-height:90vh;"><h3>📊 巡检汇总</h3><div class="summary-image-container" id="summary-image-container"></div><div class="modal-buttons"><button class="btn btn-primary" id="save-summary-btn">💾 保存图片</button><button class="btn btn-secondary" id="close-summary-btn">关闭</button></div></div></div>
+<div class="modal" id="resume-modal">
+    <div class="modal-content">
+        <h3>⏳ 检测到巡检记录</h3>
+        <p id="resume-info"></p>
+        <div class="modal-buttons">
+            <button class="btn btn-success" id="resume-patrol-btn">▶️ 继续巡检</button>
+            <button class="btn btn-danger" id="restart-patrol-btn">🔄 重新开始</button>
+        </div>
+    </div>
+</div>
+<div class="modal" id="edit-point-modal"><div class="modal-content" style="text-align:left;"><h3 style="text-align:center;">修改点位</h3><p style="font-weight:bold;margin:5px 0 5px 0;">点位地址：</p><input type="text" id="edit-point-address" class="edit-modal-input" placeholder="请输入点位地址"><p style="font-weight:bold;margin:5px 0 5px 0;">所属部门：</p><select id="edit-point-dept" class="edit-modal-input"><option value="">请选择部门</option></select><div class="modal-buttons" style="margin-top:10px;"><button class="btn btn-primary" id="save-edit-point-btn">保存</button><button class="btn btn-danger" id="delete-point-btn">删除</button></div></div></div>
+<!-- 公司名称选择弹窗 -->
+<div class="modal" id="company-type-modal">
+    <div class="modal-content">
+        <h3>🏢 选择类型</h3>
+        <p>请选择要设置的名称类型</p>
+        <div class="modal-buttons">
+            <button class="btn btn-primary" id="company-type-btn">🏢 公司</button>
+            <button class="btn btn-info" id="project-type-btn">📋 项目</button>
+        </div>
+    </div>
+</div>
+
+<!-- 公司名称填写弹窗 -->
+<div class="modal" id="company-name-modal">
+    <div class="modal-content">
+        <h3 id="company-name-modal-title">填写名称</h3>
+        <input type="text" id="company-name-input" class="edit-modal-input" placeholder="请输入名称">
+        <div class="modal-buttons">
+            <button class="btn btn-primary" id="save-company-name-btn">确认保存</button>
+            <button class="btn btn-secondary" id="cancel-company-name-btn">取消</button>
+        </div>
+    </div>
+</div>
+<script>
+// ============================================================
+// ===== 用户活动检测 + 空闲上传 =====
+var idleUploadTimer = null;
+var isUploading = false;
+var uploadAbortFlag = false;
+var lastUserActivity = Date.now();
+
+function onUserActivity() {
+    lastUserActivity = Date.now();
+    if (isUploading) {
+        uploadAbortFlag = true;
+        console.log('⏸️ 用户操作，暂停上传');
+    }
+}
+
+// 监听全局用户操作
+document.addEventListener('touchstart', onUserActivity, true);
+document.addEventListener('mousedown', onUserActivity, true);
+document.addEventListener('scroll', onUserActivity, true);
+
+function startIdleCheck() {
+    if (idleUploadTimer) clearInterval(idleUploadTimer);
+    
+    idleUploadTimer = setInterval(function() {
+        var homePage = document.getElementById('home-page');
+        if (!homePage || !homePage.classList.contains('active')) return;
+        
+        var idleTime = Date.now() - lastUserActivity;
+        
+        if (idleTime > 5000 && !isUploading) {
+            var queue = getPendingUploads();
+            if (queue.length > 0) {
+                console.log('💤 用户空闲 ' + Math.round(idleTime/1000) + ' 秒，开始上传');
+                uploadOneByOne();
+            }
+        }
+    }, 2000);
+}
+
+async function uploadOneByOne() {
+    if (isUploading) return;
+    
+    isUploading = true;
+    uploadAbortFlag = false;
+    
+    while (true) {
+        if (uploadAbortFlag) {
+            console.log('⏹️ 上传被中断');
+            break;
+        }
+        
+        var idleTime = Date.now() - lastUserActivity;
+        if (idleTime < 3000) {
+            console.log('⏹️ 用户恢复操作，停止上传');
+            break;
+        }
+        
+        var queue = getPendingUploads();
+        if (queue.length === 0) {
+            console.log('✅ 所有待上传数据已完成');
+            break;
+        }
+        
+        var item = queue[0];
+        try {
+            var result = await supabase.rpc('save_patrol_summary', item.rpcData);
+            if (result.error) {
+                console.log('❌ 上传失败:', result.error);
+                break;
+            } else {
+                console.log('✅ 上传成功:', item.cardId);
+                queue.shift();
+                savePendingUploads(queue);
+            }
+        } catch(e) {
+            console.log('❌ 上传异常:', e);
+            break;
+        }
+        
+        await new Promise(function(resolve) {
+            setTimeout(resolve, 3000);
+        });
+    }
+    
+    isUploading = false;
+    uploadAbortFlag = false;
+}
+
+// 启动空闲检测
+startIdleCheck();
+
+// 页面切换函数
+// ============================================================
+function showPage(id) {
+    console.log('🔍 showPage 被调用，目标页面：', id);
+    try {
+        document.querySelectorAll('.page').forEach(function(p) {
+            p.classList.remove('active');
+        });
+        var target = document.getElementById(id);
+        if (target) {
+            target.classList.add('active');
+            console.log('✅ 已切换到页面：', id);
+            window.scrollTo(0, 0);
+        } else {
+            console.error('❌ 找不到页面元素：', id);
+        }
+    } catch (e) {
+        console.error('❌ showPage 执行出错：', e);
+    }
+}
+
+// ============================================================
+// 工具函数
+// ============================================================
+function loadPoints() {
+    return JSON.parse(localStorage.getItem('patrol_points') || '[]');
+}
+function savePoints(p) {
+    localStorage.setItem('patrol_points', JSON.stringify(p));
+}
+function loadUsers() {
+    return JSON.parse(localStorage.getItem('patrol_users') || '[]');
+}
+function saveUsers(u) {
+    localStorage.setItem('patrol_users', JSON.stringify(u));
+}
+function loadDepartments() {
+    return JSON.parse(localStorage.getItem('patrol_departments') || '[]');
+}
+function saveDepartments(d) {
+    localStorage.setItem('patrol_departments', JSON.stringify(d));
+}
+
+function showAlert(msg, callback) {
+    var old = document.querySelector('.custom-alert-overlay');
+    if (old) old.remove();
+    var overlay = document.createElement('div');
+    overlay.className = 'custom-alert-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;padding:24px 28px;border-radius:14px;max-width:85%;min-width:260px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+    var msgP = document.createElement('p');
+    msgP.style.cssText = 'margin-bottom:20px;font-size:16px;color:#333;line-height:1.6;word-break:break-word;white-space:pre-wrap;';
+    msgP.textContent = msg;
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:10px 36px;background:#4A90E2;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer;';
+    btn.textContent = '确定';
+    btn.onclick = function() {
+        overlay.remove();
+        if (callback) callback();
+    };
+    box.appendChild(msgP);
+    box.appendChild(btn);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+}
+
+function showConfirm(msg, onConfirm, onCancel) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;padding:24px 28px;border-radius:14px;max-width:85%;min-width:260px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+    var msgP = document.createElement('p');
+    msgP.style.cssText = 'margin-bottom:20px;font-size:16px;color:#333;line-height:1.6;';
+    msgP.textContent = msg;
+    var btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+    var confirmBtn = document.createElement('button');
+    confirmBtn.style.cssText = 'padding:10px 28px;background:#e74c3c;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;';
+    confirmBtn.textContent = '确定';
+    confirmBtn.onclick = function() {
+        overlay.remove();
+        if (onConfirm) onConfirm();
+    };
+    var cancelBtn = document.createElement('button');
+    cancelBtn.style.cssText = 'padding:10px 28px;background:#95a5a6;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;';
+    cancelBtn.textContent = '取消';
+    cancelBtn.onclick = function() {
+        overlay.remove();
+        if (onCancel) onCancel();
+    };
+    btnWrap.appendChild(confirmBtn);
+    btnWrap.appendChild(cancelBtn);
+    box.appendChild(msgP);
+    box.appendChild(btnWrap);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+}
+
+function showPrompt(msg, defaultValue, callback) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;padding:24px 28px;border-radius:14px;max-width:85%;min-width:260px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+    var msgP = document.createElement('p');
+    msgP.style.cssText = 'margin-bottom:12px;font-size:16px;color:#333;';
+    msgP.textContent = msg;
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = defaultValue || '';
+    input.style.cssText = 'width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:16px;outline:none;margin-bottom:16px;box-sizing:border-box;';
+    var btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+    var confirmBtn = document.createElement('button');
+    confirmBtn.style.cssText = 'padding:10px 28px;background:#4A90E2;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;';
+    confirmBtn.textContent = '确定';
+    confirmBtn.onclick = function() {
+        var val = input.value.trim();
+        overlay.remove();
+        if (callback) callback(val);
+    };
+    var cancelBtn = document.createElement('button');
+    cancelBtn.style.cssText = 'padding:10px 28px;background:#95a5a6;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;';
+    cancelBtn.textContent = '取消';
+    cancelBtn.onclick = function() {
+        overlay.remove();
+        if (callback) callback(null);
+    };
+    btnWrap.appendChild(confirmBtn);
+    btnWrap.appendChild(cancelBtn);
+    box.appendChild(msgP);
+    box.appendChild(input);
+    box.appendChild(btnWrap);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    input.focus();
+}
+
+// ============================================================
+// Supabase 配置
+// ============================================================
+var SUPABASE_URL = 'https://szljctcwzewuyxbtotov.supabase.co';
+var SUPABASE_ANON_KEY = 'sb_publishable_ziBbcnAQqN_WXjF4S0G_DA_TS91MkpO';
+var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ============================================================
+// 全局变量
+// ============================================================
+var DEFAULT_PASSWORD = 'aks@998815';
+var adminPassword = localStorage.getItem('admin_password') || DEFAULT_PASSWORD;
+var html5QrCode = null, configQrCode = null;
+var isScanning = false, isConfigScanning = false;
+var currentScanAddress = '';
+var patrolRecords = [], userInfo = {};
+var editType = null, editIndex = -1;
+var currentQRDataUrl = null;
+var companyPhoto = null, tempPhotoData = null;
+var abnormalPhotos = [];
+var patrolStartTime = null, patrolEndTime = null;
+var randomPhotoPoints = [], randomPhotoRecords = {};
+var summaryImageDataUrl = null;
+var adminLoginTime = 0, currentDeptFilter = 'all';
+var cropData = { image: null, x: 0, y: 0, width: 0, height: 0, isDragging: false, isResizing: false, startX: 0, startY: 0 };
+var cameraStream = null;
+var editRecordIndex = -1;
+var editRecordPhotos = [];
+var currentDepartmentPoints = [];
+var selectedDeptForPoints = '';
+var editingPointIndex = -1;
+var DEFAULT_PHOTO_PATH = 'images/company-photo.jpg';
+var clickCount = 0;
+var clickTimer = null;
+
+// ============================================================
+// 数据加载函数
+// ============================================================
+function loadCompanyPhoto() {
+    var s = localStorage.getItem('company_photo');
+    if (s) {
+        companyPhoto = s;
+        updateCompanyPhotoDisplay();
+    } else {
+        var img = new Image();
+        img.onload = function() {
+            companyPhoto = DEFAULT_PHOTO_PATH;
+            updateCompanyPhotoDisplay();
+        };
+        img.onerror = function() {
+            companyPhoto = null;
+            updateCompanyPhotoDisplay();
+        };
+        img.src = DEFAULT_PHOTO_PATH;
+    }
+}
+
+function updateCompanyPhotoDisplay() {
+    var c = document.getElementById('company-photo-container');
+    var p = document.getElementById('photo-preview-container');
+    if (companyPhoto) {
+        if (c) c.innerHTML = '<img src="' + companyPhoto + '" alt="公司照片">';
+        if (p) p.innerHTML = '<img src="' + companyPhoto + '" style="width:100%;height:100%;object-fit:cover;" alt="公司照片">';
+    } else {
+        if (c) c.innerHTML = '<div class="company-photo-placeholder">公司形象照片</div>';
+        if (p) p.innerHTML = '<div class="company-photo-placeholder">预览</div>';
+    }
+}
+
+function loadUserInfo() {
+    var s = localStorage.getItem('patrol_user_info');
+    if (s) {
+        try {
+            userInfo = JSON.parse(s);
+        } catch(e) {}
+    }
+    // 公司名称从后台设置读取
+    userInfo.company = localStorage.getItem('company_name') || '';
+    loadUserSelect();
+    loadDepartmentSelect();
+}
+
+function loadUserSelect() {
+    var users = loadUsers();
+    var sel = document.getElementById('name-select');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">请选择姓名</option>';
+    users.forEach(function(u) {
+        var o = document.createElement('option');
+        o.value = u.name;
+        o.textContent = u.name;
+        sel.appendChild(o);
+    });
+    if (userInfo.name) {
+        sel.value = userInfo.name;
+        var u = users.find(function(x) { return x.name === userInfo.name; });
+        if (u) document.getElementById('department-input').value = u.department;
+    }
+}
+
+function loadDepartmentSelect() {
+    var depts = loadDepartments();
+    var sel = document.getElementById('user-department-input');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">请选择部门</option>';
+    depts.forEach(function(d) {
+        var o = document.createElement('option');
+        o.value = d.name;
+        o.textContent = d.name;
+        sel.appendChild(o);
+    });
+}
+
+function loadPointDeptSelect() {
+    var depts = loadDepartments();
+    var sel = document.getElementById('point-dept-select');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">选择部门</option>';
+    depts.forEach(function(d) {
+        var opt = document.createElement('option');
+        opt.value = d.name;
+        opt.textContent = d.name;
+        sel.appendChild(opt);
+    });
+    if (depts.length > 0) {
+        sel.value = depts[0].name;
+    }
+}
+
+function saveUserInfo() {
+    userInfo = {
+        company: localStorage.getItem('company_name') || '',
+        name: document.getElementById('name-select').value,
+        department: document.getElementById('department-input').value
+    };
+    localStorage.setItem('patrol_user_info', JSON.stringify(userInfo));
+}
+
+function savePatrolState() {
+    localStorage.setItem('patrol_state', JSON.stringify({
+        records: patrolRecords,
+        startTime: patrolStartTime,
+        endTime: patrolEndTime,
+        randomPoints: randomPhotoPoints,
+        randomRecords: randomPhotoRecords,
+        userInfo: userInfo
+    }));
+}
+
+function loadPatrolState() {
+    var s = localStorage.getItem('patrol_state');
+    return s ? JSON.parse(s) : null;
+}
+
+function clearPatrolState() {
+    localStorage.removeItem('patrol_state');
+}
+
+// ============================================================
+// 部门管理
+// ============================================================
+function renderDepartmentList() {
+    var depts = loadDepartments();
+    var el = document.getElementById('department-list');
+    if (!el) return;
+    if (!depts.length) {
+        el.innerHTML = '<p style="text-align:center;color:#999;">暂无部门</p>';
+        return;
+    }
+    var html = '<p class="list-count">共' + depts.length + '个部门</p>';
+    depts.forEach(function(d, i) {
+        html += '<div class="list-item"><span class="list-info" onclick="showDepartmentAction(' + i + ')">' + (i+1) + '. ' + d.name + '</span></div>';
+    });
+    el.innerHTML = html;
+}
+
+function showDepartmentAction(i) {
+    var depts = loadDepartments();
+    var dept = depts[i];
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;padding:24px 28px;border-radius:14px;max-width:85%;min-width:280px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+    var msgP = document.createElement('p');
+    msgP.style.cssText = 'margin-bottom:20px;font-size:16px;color:#333;';
+    msgP.textContent = '部门：' + dept.name;
+    var btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex;gap:12px;justify-content:center;';
+    var editBtn = document.createElement('button');
+    editBtn.style.cssText = 'padding:12px 24px;background:#4A90E2;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;';
+    editBtn.textContent = '✏️ 修改';
+    editBtn.onclick = function() {
+        overlay.remove();
+        showPrompt('新部门名称：', dept.name, function(n) {
+            if (n && n.trim()) {
+                dept.name = n.trim();
+                saveDepartments(depts);
+                renderDepartmentList();
+                loadDepartmentSelect();
+                renderDeptTabs();
+                loadPointDeptSelect();
+                renderPointDeptButtons();
+                renderPointDetail();
+                showAlert('修改成功！');
+            }
+        });
+    };
+    var deleteBtn = document.createElement('button');
+    deleteBtn.style.cssText = 'padding:12px 24px;background:#ff4d4f;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;';
+    deleteBtn.textContent = '🗑️ 删除';
+    deleteBtn.onclick = function() {
+        overlay.remove();
+        showConfirm('确定删除部门：' + dept.name + '？', function() {
+            depts.splice(i, 1);
+            saveDepartments(depts);
+            renderDepartmentList();
+            loadDepartmentSelect();
+            renderDeptTabs();
+            loadPointDeptSelect();
+            renderPointDeptButtons();
+            renderPointDetail();
+            showAlert('删除成功！');
+        });
+    };
+    btnWrap.appendChild(editBtn);
+    btnWrap.appendChild(deleteBtn);
+    box.appendChild(msgP);
+    box.appendChild(btnWrap);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+}
+
+function addDepartment() {
+    var n = document.getElementById('department-name-input').value.trim();
+    if (!n) { showAlert('请输入部门名称'); return; }
+    var depts = loadDepartments();
+    if (depts.find(function(d) { return d.name === n; })) { showAlert('该部门已存在！'); return; }
+    depts.push({ name: n });
+    saveDepartments(depts);
+    document.getElementById('department-name-input').value = '';
+    renderDepartmentList();
+    loadDepartmentSelect();
+    renderDeptTabs();
+    loadPointDeptSelect();
+    renderPointDeptButtons();
+    renderPointDetail();
+    showAlert('部门添加成功！');
+}
+
+// ============================================================
+// 人员管理
+// ============================================================
+function renderDeptTabs() {
+    var depts = loadDepartments();
+    var c = document.getElementById('department-tabs');
+    if (!c) return;
+    c.innerHTML = '';
+    depts.forEach(function(d) {
+        var tab = document.createElement('div');
+        tab.className = 'dept-tab' + (currentDeptFilter === d.name ? ' active' : '');
+        tab.textContent = d.name;
+        tab.onclick = function() { currentDeptFilter = d.name; renderDeptTabs(); renderUserList(); };
+        c.appendChild(tab);
+    });
+}
+
+function renderUserList() {
+    var users = loadUsers();
+    var el = document.getElementById('user-list');
+    if (!el) return;
+    var filtered = users;
+    if (currentDeptFilter !== 'all') filtered = users.filter(function(u) { return u.department === currentDeptFilter; });
+    if (!filtered.length) {
+        el.innerHTML = '<p style="text-align:center;color:#999;">暂无人员</p>';
+        return;
+    }
+    var dn = currentDeptFilter === 'all' ? '全部' : currentDeptFilter;
+    var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+    html += '<p class="list-count" style="margin-bottom:0;">' + dn + '：共' + filtered.length + '人</p>';
+    if (currentDeptFilter !== 'all') {
+        html += '<button onclick="generateDeptUsersQR(\'' + currentDeptFilter + '\')" style="padding:6px 12px;background:#4A90E2;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">📱 生成二维码</button>';
+    }
+    html += '</div>';
+    html += '<div class="user-list-header">';
+    html += '<span class="header-number">序号</span>';
+    html += '<span class="header-name">姓名</span>';
+    html += '<span class="header-dept">部门</span>';
+    html += '</div>';
+    filtered.forEach(function(u, i) {
+        var oi = users.indexOf(u);
+        html += '<div class="user-item" onclick="showUserAction(' + oi + ')">';
+        html += '<span class="user-number">' + String(i + 1).padStart(2, '0') + '</span>';
+        html += '<span class="user-name">' + u.name + '</span>';
+        html += '<span class="user-dept">' + u.department + '</span>';
+        html += '</div>';
+    });
+    el.innerHTML = html;
+}
+
+function generateDeptUsersQR(deptName) {
+    var users = loadUsers().filter(function(u) { return u.department === deptName; });
+    if (!users.length) { showAlert(deptName + '暂无人员'); return; }
+    var content = 'U|DEPT:' + deptName + '|' + users.map(function(u) { return u.name; }).join(',');
+    var encoded = 'B64:' + btoa(unescape(encodeURIComponent(content)));
+    generateQRNormal(encoded, deptName + '人员配置二维码', deptName + '（共' + users.length + '人）');
+}
+
+function showUserAction(i) {
+    editType = 'user';
+    editIndex = i;
+    var u = loadUsers()[i];
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;padding:24px 28px;border-radius:14px;max-width:85%;min-width:280px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+    var msgP = document.createElement('p');
+    msgP.style.cssText = 'margin-bottom:20px;font-size:16px;color:#333;';
+    msgP.textContent = '人员：' + u.name + '\n部门：' + u.department;
+    var btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex;gap:12px;justify-content:center;';
+    var editBtn = document.createElement('button');
+    editBtn.style.cssText = 'padding:12px 24px;background:#4A90E2;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;';
+    editBtn.textContent = '✏️ 修改';
+    editBtn.onclick = function() { overlay.remove(); editUser(); };
+    var deleteBtn = document.createElement('button');
+    deleteBtn.style.cssText = 'padding:12px 32px;background:#ff4d4f;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer;';
+    deleteBtn.textContent = '🗑️ 删除';
+    deleteBtn.onclick = function() {
+        overlay.remove();
+        showConfirm('确定删除人员：' + u.name + '？', function() {
+            var users = loadUsers();
+            users.splice(editIndex, 1);
+            saveUsers(users);
+            renderDeptTabs();
+            renderUserList();
+            loadUserSelect();
+            showAlert('删除成功！');
+        });
+    };
+    btnWrap.appendChild(editBtn);
+    btnWrap.appendChild(deleteBtn);
+    box.appendChild(msgP);
+    box.appendChild(btnWrap);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+}
+
+function addUser() {
+    var n = document.getElementById('user-name-input').value.trim();
+    var d = document.getElementById('user-department-input').value;
+    if (!n || !d) { showAlert('请填写姓名并选择部门'); return; }
+    var users = loadUsers();
+    if (users.find(function(u) { return u.name === n; })) { showAlert('该人员已存在！'); return; }
+    users.push({ name: n, department: d });
+    saveUsers(users);
+    document.getElementById('user-name-input').value = '';
+    renderDeptTabs();
+    renderUserList();
+    loadUserSelect();
+    showAlert('人员添加成功！');
+}
+
+function editUser() {
+    var u = loadUsers()[editIndex];
+    document.getElementById('edit-modal-title').textContent = '修改人员';
+    document.getElementById('edit-input-1').value = u.name;
+    document.getElementById('edit-input-2').style.display = 'block';
+    document.getElementById('edit-input-2').value = u.department;
+    document.getElementById('edit-modal').classList.add('active');
+}
+
+function saveEdit() {
+    if (editType === 'user') {
+        var n = document.getElementById('edit-input-1').value.trim();
+        var d = document.getElementById('edit-input-2').value.trim();
+        if (!n || !d) { showAlert('请填写完整信息'); return; }
+        var users = loadUsers();
+        if (users.find(function(u, i) { return i !== editIndex && u.name === n; })) { showAlert('该人员已存在！'); return; }
+        users[editIndex].name = n;
+        users[editIndex].department = d;
+        saveUsers(users);
+        renderDeptTabs();
+        renderUserList();
+        loadUserSelect();
+    }
+    document.getElementById('edit-modal').classList.remove('active');
+    showAlert('修改成功！');
+}
+
+// ============================================================
+// 点位管理
+// ============================================================
+function renderPointDeptButtons() {
+    var depts = loadDepartments();
+    var container = document.getElementById('point-dept-btn-group');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!depts.length) {
+        container.innerHTML = '<span style="color:#999;font-size:14px;">暂无部门，请先添加部门</span>';
+        return;
+    }
+    var deptNames = depts.map(function(d) { return d.name; });
+    if (!selectedDeptForPoints || deptNames.indexOf(selectedDeptForPoints) === -1) {
+        selectedDeptForPoints = depts[0].name;
+    }
+    depts.forEach(function(d) {
+        var btn = document.createElement('button');
+        btn.className = 'dept-btn' + (selectedDeptForPoints === d.name ? ' active' : '');
+        btn.textContent = d.name;
+        btn.onclick = function() {
+            selectedDeptForPoints = d.name;
+            renderPointDeptButtons();
+            renderPointDetail();
+        };
+        container.appendChild(btn);
+    });
+}
+
+function renderPointDetail() {
+    var points = loadPoints();
+    var container = document.getElementById('point-detail-container');
+    if (!container) return;
+    var depts = loadDepartments();
+    if (!depts.length) {
+        container.innerHTML = '<p style="text-align:center;color:#999;">请先添加部门</p>';
+        return;
+    }
+    var deptName = selectedDeptForPoints || depts[0].name;
+    var filtered = points.filter(function(p) { return p.department === deptName; });
+    var html = '';
+    html += '<div class="section-header">';
+    html += '<span class="section-title">' + deptName + ' <span class="count">（共' + filtered.length + '个点位）</span></span>';
+    if (filtered.length > 0) {
+        html += '<button class="btn-global-qr" onclick="generateDeptConfigQR(\'' + deptName + '\')">📱全局二维码</button>';
+    }
+    html += '</div>';
+    if (!filtered.length) {
+        html += '<p style="text-align:center;color:#999;padding:10px 0;">该部门暂无点位</p>';
+    } else {
+        filtered.forEach(function(p, i) {
+            var idx = points.indexOf(p);
+            html += '<div class="list-item">';
+            html += '<span class="list-info" onclick="openEditPoint(' + idx + ')">' + (i+1) + '. ' + p.address + '</span>';
+            html += '<button class="btn-sm btn-qr" onclick="generateSinglePointQR(' + idx + ')">📱</button>';
+            html += '</div>';
+        });
+    }
+    container.innerHTML = html;
+}
+
+function addPoint() {
+    var a = document.getElementById('point-address-input').value.trim();
+    var dept = document.getElementById('point-dept-select').value;
+    if (!a) { showAlert('请输入点位地址'); return; }
+    if (!dept) { showAlert('请选择所属部门'); return; }
+    var points = loadPoints();
+    var exists = points.some(function(p) { return p.address === a && p.department === dept; });
+    if (exists) { showAlert('该点位在"' + dept + '"已存在！'); return; }
+    points.push({ address: a, department: dept });
+    savePoints(points);
+    document.getElementById('point-address-input').value = '';
+    renderPointDetail();
+    showAlert('点位添加成功！所属部门：' + dept);
+}
+
+function generateSinglePointQR(idx) {
+    var points = loadPoints();
+    var p = points[idx];
+    if (!p) { showAlert('点位不存在'); return; }
+    generateQRNormal(p.address, '点位二维码', p.address + '（' + p.department + '）');
+}
+
+function generateDeptConfigQR(deptName) {
+    var points = loadPoints();
+    var deptPoints = points.filter(function(p) { return p.department === deptName; });
+    if (!deptPoints.length) { showAlert('该部门暂无点位'); return; }
+    var content = 'P|DEPT:' + deptName + '|' + deptPoints.map(function(p, i) {
+        return (i+1) + ':' + p.address;
+    }).join('|');
+    generateQRNormal(content, deptName + '点位配置二维码', deptName + '（共' + deptPoints.length + '个点位）');
+}
+
+function openEditPoint(idx) {
+    var points = loadPoints();
+    var p = points[idx];
+    if (!p) { showAlert('点位不存在'); return; }
+    editingPointIndex = idx;
+    document.getElementById('edit-point-address').value = p.address;
+    var depts = loadDepartments();
+    var sel = document.getElementById('edit-point-dept');
+    sel.innerHTML = '';
+    depts.forEach(function(d) {
+        var opt = document.createElement('option');
+        opt.value = d.name;
+        opt.textContent = d.name;
+        if (d.name === p.department) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    document.getElementById('edit-point-modal').classList.add('active');
+}
+
+function saveEditPoint() {
+    var points = loadPoints();
+    var p = points[editingPointIndex];
+    if (!p) { showAlert('点位不存在'); return; }
+    var newAddress = document.getElementById('edit-point-address').value.trim();
+    var newDept = document.getElementById('edit-point-dept').value;
+    if (!newAddress) { showAlert('请输入点位地址'); return; }
+    if (!newDept) { showAlert('请选择部门'); return; }
+    var exists = points.some(function(pp, i) {
+        return i !== editingPointIndex && pp.address === newAddress && pp.department === newDept;
+    });
+    if (exists) { showAlert('该点位在"' + newDept + '"已存在！'); return; }
+    p.address = newAddress;
+    p.department = newDept;
+    savePoints(points);
+    document.getElementById('edit-point-modal').classList.remove('active');
+    renderPointDetail();
+    showAlert('修改成功！');
+}
+
+function deletePointFromEdit() {
+    showConfirm('确定删除该点位？', function() {
+        var points = loadPoints();
+        points.splice(editingPointIndex, 1);
+        savePoints(points);
+        document.getElementById('edit-point-modal').classList.remove('active');
+        renderPointDetail();
+        showAlert('删除成功！');
+    });
+}
+
+// ============================================================
+// 二维码生成
+// ============================================================
+function generateQRNormal(content, title, info) {
+    document.getElementById('qr-modal-title').textContent = title;
+    document.getElementById('qr-code-display').innerHTML = '';
+    document.getElementById('qr-info').textContent = '';
+    var container = document.getElementById('qr-code-display');
+    var apiUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=' + encodeURIComponent(content);
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = apiUrl;
+    img.onload = function() {
+        var fc = document.createElement('canvas');
+        var qs = 600, lh = 120;
+        fc.width = qs;
+        fc.height = qs + lh;
+        var ctx = fc.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, fc.width, fc.height);
+        ctx.drawImage(img, 0, 0, qs, qs);
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        var fs = 36;
+        ctx.font = 'bold ' + fs + 'px "Microsoft YaHei",sans-serif';
+        while (ctx.measureText(info).width > qs - 40 && fs > 16) {
+            fs--;
+            ctx.font = 'bold ' + fs + 'px "Microsoft YaHei",sans-serif';
+        }
+        ctx.fillText(info, qs/2, qs + 70);
+        currentQRDataUrl = fc.toDataURL('image/png');
+        container.innerHTML = '';
+        var displayImg = document.createElement('img');
+        displayImg.src = currentQRDataUrl;
+        displayImg.style.width = '280px';
+        displayImg.style.height = 'auto';
+        container.appendChild(displayImg);
+        document.getElementById('qr-info').textContent = info;
+        document.getElementById('qr-modal').classList.add('active');
+    };
+    img.onerror = function() {
+        showAlert('二维码生成失败，请检查网络连接');
+    };
+}
+
+function saveQRToAlbum() {
+    if (!currentQRDataUrl) { showAlert('二维码尚未生成'); return; }
+    var link = document.createElement('a');
+    link.href = currentQRDataUrl;
+    link.download = '二维码_' + Date.now() + '.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showAlert('二维码已保存');
+}
+
+// ============================================================
+// 照片裁剪（简化版）
+// ============================================================
+function uploadPhoto(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var img = new Image();
+        img.onload = function() {
+            cropData.image = img;
+            document.getElementById('crop-image').src = e.target.result;
+            document.getElementById('crop-section').style.display = 'block';
+            initCrop();
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function initCrop() {
+    var c = document.getElementById('crop-container');
+    var img = document.getElementById('crop-image');
+    var cw = c.clientWidth || 300;
+    var dh = (cropData.image.height / cropData.image.width) * cw;
+    img.style.width = cw + 'px';
+    img.style.height = dh + 'px';
+    var cw2 = cw * 0.8, ch2 = cw2 * 0.5;
+    cropData.x = (cw - cw2) / 2;
+    cropData.y = (dh - ch2) / 2;
+    cropData.width = cw2;
+    cropData.height = ch2;
+    updateCropOverlay();
+    initCropInteraction();
+}
+
+function updateCropOverlay() {
+    var o = document.getElementById('crop-overlay');
+    o.style.left = cropData.x + 'px';
+    o.style.top = cropData.y + 'px';
+    o.style.width = cropData.width + 'px';
+    o.style.height = cropData.height + 'px';
+}
+
+function initCropInteraction() {
+    var o = document.getElementById('crop-overlay');
+    var h = document.getElementById('crop-resize-handle');
+    function startDrag(e) {
+        if (e.target === h) return;
+        cropData.isDragging = true;
+        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        cropData.startX = clientX - cropData.x;
+        cropData.startY = clientY - cropData.y;
+        e.preventDefault();
+    }
+    function startResize(e) {
+        cropData.isResizing = true;
+        cropData.startX = e.touches ? e.touches[0].clientX : e.clientX;
+        e.stopPropagation();
+        e.preventDefault();
+    }
+    function moveHandler(e) {
+        var img = document.getElementById('crop-image');
+        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        if (cropData.isDragging) {
+            cropData.x = Math.max(0, Math.min(clientX - cropData.startX, img.clientWidth - cropData.width));
+            cropData.y = Math.max(0, Math.min(clientY - cropData.startY, img.clientHeight - cropData.height));
+            updateCropOverlay();
+        } else if (cropData.isResizing) {
+            var nw = Math.max(50, Math.min(cropData.width + (clientX - cropData.startX), img.clientWidth - cropData.x));
+            var nh = nw * 0.5;
+            if (cropData.y + nh > img.clientHeight) {
+                nh = img.clientHeight - cropData.y;
+                nw = nh * 2;
+            }
+            cropData.width = nw;
+            cropData.height = nh;
+            cropData.startX = clientX;
+            updateCropOverlay();
+        }
+    }
+    function endHandler() {
+        cropData.isDragging = false;
+        cropData.isResizing = false;
+    }
+    o.addEventListener('mousedown', startDrag);
+    h.addEventListener('mousedown', startResize);
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', endHandler);
+    o.addEventListener('touchstart', startDrag);
+    h.addEventListener('touchstart', startResize);
+    document.addEventListener('touchmove', moveHandler);
+    document.addEventListener('touchend', endHandler);
+}
+
+function confirmCrop() {
+    var img = document.getElementById('crop-image');
+    var c = document.createElement('canvas');
+    c.width = 600;
+    c.height = 300;
+    var ctx = c.getContext('2d');
+    var sx = cropData.image.width / img.clientWidth;
+    var sy = cropData.image.height / img.clientHeight;
+    ctx.drawImage(cropData.image, cropData.x * sx, cropData.y * sy, cropData.width * sx, cropData.height * sy, 0, 0, 600, 300);
+    tempPhotoData = c.toDataURL('image/jpeg', 0.9);
+    document.getElementById('photo-preview-container').innerHTML = '<img src="' + tempPhotoData + '" style="width:100%;height:100%;object-fit:cover;">';
+    document.getElementById('crop-section').style.display = 'none';
+}
+
+function savePhoto() {
+    if (tempPhotoData) {
+        companyPhoto = tempPhotoData;
+        localStorage.setItem('company_photo', companyPhoto);
+        updateCompanyPhotoDisplay();
+        showAlert('照片保存成功！');
+    } else {
+        showAlert('请先上传并裁剪照片');
+    }
+}
+
+function removePhoto() {
+    showConfirm('确定移除公司形象照片？', function() {
+        companyPhoto = null;
+        tempPhotoData = null;
+        localStorage.removeItem('company_photo');
+        updateCompanyPhotoDisplay();
+        document.getElementById('photo-preview-container').innerHTML = '<div class="company-photo-placeholder">预览</div>';
+        showAlert('已移除');
+    });
+}
+
+// ============================================================
+// 密码修改
+// ============================================================
+function changePassword() {
+    var c = document.getElementById('current-password-input').value;
+    var n = document.getElementById('new-password-input').value;
+    var cf = document.getElementById('confirm-password-input').value;
+    if (c !== adminPassword) { showAlert('当前密码错误！'); return; }
+    if (!n || n.length < 6) { showAlert('新密码至少6位'); return; }
+    if (n !== cf) { showAlert('两次密码不一致'); return; }
+    adminPassword = n;
+    localStorage.setItem('admin_password', adminPassword);
+    document.getElementById('current-password-input').value = '';
+    document.getElementById('new-password-input').value = '';
+    document.getElementById('confirm-password-input').value = '';
+    showAlert('密码修改成功！');
+}
+
+// ============================================================
+// 巡检核心逻辑
+// ============================================================
+function startPatrol() {
+    console.log('🚀 startPatrol 被调用');
+    try {
+        var company = localStorage.getItem('company_name') || '';
+        var name = document.getElementById('name-select').value;
+        var dept = document.getElementById('department-input').value;
+        if (!name || !dept) {
+    showAlert('请选择姓名');
+    return;
+}
+        var allPoints = loadPoints();
+        var points = allPoints.filter(function(p) { return p.department === dept; });
+        if (!points.length) {
+            showAlert('本部门（' + dept + '）暂无点位，请联系管理员配置');
+            return;
+        }
+        currentDepartmentPoints = points;
+        
+        // 检查是否有保存的巡检记录
+        var saved = loadPatrolState();
+        if (saved && saved.records && saved.records.length > 0) {
+            // 有记录，弹窗提示选择
+            var isComplete = saved.records.length >= points.length;
+            var statusText = isComplete ? '已完成' : '未完成';
+            document.getElementById('resume-info').textContent = 
+                '人员：' + saved.userInfo.name + '\n' +
+                '部门：' + dept + '\n' +
+                '状态：' + statusText + '\n' +
+                '已扫描：' + saved.records.length + '/' + points.length + '个点位';
+            document.getElementById('resume-modal').classList.add('active');
+            return;
+        }
+        
+        // 无记录，直接开始新巡检
+        saveUserInfo();
+        initPatrol();
+    } catch (e) {
+        console.error('❌ startPatrol 出错：', e);
+        showAlert('启动巡检失败，请刷新后重试');
+    }
+}
+
+function initPatrol() {
+    console.log('🔄 initPatrol 被调用');
+    console.log('📋 currentDepartmentPoints 长度：', currentDepartmentPoints.length);
+    
+    // 如果没有点位，重新加载
+    if (!currentDepartmentPoints || currentDepartmentPoints.length === 0) {
+        var allPoints = loadPoints();
+        var dept = userInfo.department || document.getElementById('department-input').value;
+        currentDepartmentPoints = allPoints.filter(function(p) { return p.department === dept; });
+        console.log('🔄 重新加载点位：', currentDepartmentPoints.length);
+    }
+    
+    // 完全重置所有状态
+    patrolRecords = [];
+    patrolStartTime = null;
+    patrolEndTime = null;
+    randomPhotoRecords = {};
+    abnormalPhotos = [];
+    randomPhotoPoints = [];
+    
+    // 重新生成随机拍照点位
+    selectRandomPhotoPoints(currentDepartmentPoints.length);
+    console.log('📸 随机拍照点位索引：', randomPhotoPoints);
+    
+    document.getElementById('patrol-user-info').innerHTML = '<div style="font-size:16px;font-weight:bold;margin-bottom:6px;">' + (userInfo.company || '') + '</div><div style="font-size:14px;color:#666;">' + (userInfo.department || '') + ' · ' + (userInfo.name || '') + '</div>';
+    showPage('patrol-page');
+    updateProgress();
+    renderRecords();
+}
+
+function selectRandomPhotoPoints(total) {
+    randomPhotoPoints = [];
+    console.log('📸 生成随机拍照点位，总点数：', total);
+    
+    if (total <= 0) return;
+    
+    var idx = [];
+    for (var i = 0; i < total; i++) {
+        idx.push(i);
+    }
+    
+    var count = Math.min(3, total);
+    for (var i = 0; i < count; i++) {
+        var ri = Math.floor(Math.random() * idx.length);
+        randomPhotoPoints.push(idx[ri]);
+        idx.splice(ri, 1);
+    }
+    
+    console.log('📸 随机拍照点位索引：', randomPhotoPoints);
+    console.log('📸 随机拍照点位地址：', randomPhotoPoints.map(function(i) { return currentDepartmentPoints[i].address; }));
+}
+
+function updateProgress() {
+    var points = currentDepartmentPoints.length ? currentDepartmentPoints : loadPoints();
+    var t = points.length;
+    var s = patrolRecords.length;
+    document.getElementById('progress-text').textContent = s + '/' + t + ' 点位已扫描';
+    document.getElementById('progress-fill').style.width = (t > 0 ? (s / t) * 100 : 0) + '%';
+    document.getElementById('finish-patrol-btn').disabled = s < t;
+}
+
+function renderRecords() {
+    var el = document.getElementById('record-list');
+    if (!patrolRecords.length) {
+        el.innerHTML = '<p style="text-align:center;color:#999;">暂无扫描记录</p>';
+        return;
+    }
+    el.innerHTML = '';
+    patrolRecords.forEach(function(r, i) {
+        var item = document.createElement('div');
+        item.className = 'record-item';
+        var cls = r.status === '正常' ? 'normal' : 'abnormal';
+        var it = '';
+        if (i > 0) it = '间隔：' + formatDuration(Math.round((r.timestamp - patrolRecords[i-1].timestamp) / 1000));
+        item.innerHTML = '<div><strong>' + (i+1) + '. ' + r.address + '</strong></div><div>时间：' + r.time + '</div>' + (it ? '<div>' + it + '</div>' : '') + '<div class="record-status ' + cls + '">' + r.status + (r.note ? ' - ' + r.note : '') + '</div>';
+        item.style.cursor = 'pointer';
+        item.onclick = function() { openEditRecord(i); };
+        el.appendChild(item);
+    });
+}
+
+function formatDuration(s) {
+    if (s < 60) return s + '秒';
+    var m = Math.floor(s / 60), r = s % 60;
+    if (m < 60) return m + '分' + r + '秒';
+    var h = Math.floor(m / 60);
+    return h + '小时' + (m % 60) + '分';
+}
+
+function startScanner() {
+    document.getElementById('scanner-container').style.display = 'block';
+    document.getElementById('start-scan-btn').style.display = 'none';
+    if (html5QrCode) {
+        html5QrCode.stop().then(function() { html5QrCode.clear(); html5QrCode = null; initScanner(); }).catch(function() { html5QrCode = null; initScanner(); });
+    } else {
+        initScanner();
+    }
+}
+
+function initScanner() {
+    html5QrCode = new Html5Qrcode("qr-reader");
+    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, onScanFailure).then(function() { isScanning = true; }).catch(function(err) { console.error(err); showAlert('无法启动相机，请检查权限'); });
+}
+
+function onScanSuccess(decodedText) {
+    if (!isScanning) return;
+    if (navigator.vibrate) navigator.vibrate(200);
+    playBeep();
+    currentScanAddress = decodedText;
+    if (patrolRecords.find(function(r) { return r.address === decodedText; })) {
+        showAlert('该点位已扫描过！');
+        return;
+    }
+    document.getElementById('scan-modal-address').textContent = decodedText;
+    document.getElementById('scan-modal').classList.add('active');
+    isScanning = false;
+    if (html5QrCode) {
+        html5QrCode.stop().then(function() { html5QrCode.clear(); html5QrCode = null; }).catch(function() { html5QrCode = null; });
+    }
+    document.getElementById('scanner-container').style.display = 'none';
+    document.getElementById('start-scan-btn').style.display = 'block';
+}
+
+var globalAudioContext = null;
+
+function playBeep() {
+    try {
+        // 复用全局音频上下文
+        if (!globalAudioContext) {
+            globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        // 如果被挂起，恢复它
+        if (globalAudioContext.state === 'suspended') {
+            globalAudioContext.resume();
+        }
+        var oscillator = globalAudioContext.createOscillator();
+        var gainNode = globalAudioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(globalAudioContext.destination);
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(1.0, globalAudioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, globalAudioContext.currentTime + 0.3);
+        oscillator.start(globalAudioContext.currentTime);
+        oscillator.stop(globalAudioContext.currentTime + 0.3);
+    } catch (e) {
+        console.log('音频播放失败', e);
+    }
+}
+
+function onScanFailure() {}
+
+function selectQRFromAlbum() {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = function(e) {
+        if (e.target.files.length > 0) {
+            var ts = new Html5Qrcode('qr-reader');
+            ts.scanFile(e.target.files[0], true).then(function(d) { onScanSuccess(d); }).catch(function() { showAlert('无法识别'); }).finally(function() { ts.clear(); input.value = ''; });
+        }
+    };
+    input.click();
+}
+
+function recordScan(status, note) {
+    console.log('📝 recordScan 被调用，状态：', status);
+    
+    note = note || '';
+    var now = new Date();
+    var ts = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+    if (!patrolStartTime) patrolStartTime = now.getTime();
+    patrolEndTime = now.getTime();
+    
+    var ri = patrolRecords.length;
+    console.log('📝 当前记录索引：', ri);
+    console.log('📝 随机拍照点位列表：', randomPhotoPoints);
+    
+    var record = {
+        address: currentScanAddress,
+        time: ts,
+        timestamp: now.getTime(),
+        status: status,
+        note: note
+    };
+    
+    if (status === '异常') {
+        record.abnormalPhotos = abnormalPhotos.slice();
+        record.abnormalNote = note;
+        record.resultNote = document.getElementById('result-note').value.trim();
+    }
+    
+    var needRandomPhoto = randomPhotoPoints.indexOf(ri) !== -1;
+    console.log('📝 是否需要随机拍照：', needRandomPhoto);
+    
+    // 先添加记录
+    patrolRecords.push(record);
+    savePatrolState();
+    renderRecords();
+    updateProgress();
+    
+    if (needRandomPhoto) {
+        if (html5QrCode) {
+            html5QrCode.stop().then(function() { 
+                html5QrCode.clear(); 
+                html5QrCode = null; 
+            }).catch(function(e) {});
+        }
+        isScanning = false;
+        
+        showAlert('📸 随机拍照，请对准点位', function() {
+            openCameraModal().then(function(photos) {
+                if (photos) {
+                    record.randomPhotos = photos;
+                    randomPhotoRecords[ri] = photos;
+                    showAlert('✅ 拍照完成');
+                } else {
+                    showAlert('❌ 拍照失败，继续巡检');
+                }
+                
+                savePatrolState();
+                isScanning = true;
+                setTimeout(function() { 
+                    if (!html5QrCode) {
+                        initScanner(); 
+                    }
+                }, 500);
+            });
+        });
+    } else {
+        isScanning = true;
+    }
+    
+    console.log('📝 当前记录总数：', patrolRecords.length);
+}
+
+function openCameraModal() {
+    return new Promise(function(resolve) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { resolve(null); return; }
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function(stream) {
+            cameraStream = stream;
+            var video = document.getElementById('camera-preview');
+            video.srcObject = stream;
+            document.getElementById('camera-modal').classList.add('active');
+            document.getElementById('capture-btn').onclick = function() {
+                try {
+    if (!globalAudioContext) {
+        globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (globalAudioContext.state === 'suspended') {
+        globalAudioContext.resume();
+    }
+    var oscillator = globalAudioContext.createOscillator();
+    var gainNode = globalAudioContext.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(globalAudioContext.destination);
+    oscillator.frequency.value = 800;
+    oscillator.type = 'square';
+    gainNode.gain.setValueAtTime(1.0, globalAudioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, globalAudioContext.currentTime + 0.1);
+    oscillator.start(globalAudioContext.currentTime);
+    oscillator.stop(globalAudioContext.currentTime + 0.1);
+} catch (e) { console.log('音频播放失败', e); }
+                var canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                var photo = canvas.toDataURL('image/jpeg', 0.8);
+                cameraStream.getTracks().forEach(function(t) { t.stop(); });
+                document.getElementById('camera-modal').classList.remove('active');
+                resolve({ front: photo, back: photo, time: new Date().toLocaleString() });
+            };
+        }).catch(function() { resolve(null); });
+    });
+}
+
+function exitPatrol() {
+    if (html5QrCode) {
+        html5QrCode.stop().then(function() { html5QrCode.clear(); html5QrCode = null; }).catch(function() { html5QrCode = null; });
+    }
+    isScanning = false;
+    savePatrolState();
+    showPage('home-page');
+}
+
+function resumePatrol() {
+    var s = loadPatrolState();
+    if (s) {
+        patrolRecords = s.records || [];
+        patrolStartTime = s.startTime;
+        patrolEndTime = s.endTime;
+        randomPhotoPoints = s.randomPoints || [];
+        randomPhotoRecords = s.randomRecords || {};
+        userInfo = s.userInfo;
+        
+        // 如果已完成，直接跳到完成状态
+        if (patrolRecords.length >= currentDepartmentPoints.length) {
+            document.getElementById('resume-modal').classList.remove('active');
+            showAlert('该巡检已完成，请查看汇总记录');
+            showPage('patrol-page');
+            document.getElementById('patrol-user-info').innerHTML = '<div style="font-size:16px;font-weight:bold;margin-bottom:6px;">' + (userInfo.company || '') + '</div><div style="font-size:14px;color:#666;">' + (userInfo.department || '') + ' · ' + (userInfo.name || '') + '</div>';
+            updateProgress();
+            renderRecords();
+            return;
+        }
+    }
+    document.getElementById('resume-modal').classList.remove('active');
+    document.getElementById('patrol-user-info').innerHTML = '<div style="font-size:16px;font-weight:bold;margin-bottom:6px;">' + (userInfo.company || '') + '</div><div style="font-size:14px;color:#666;">' + (userInfo.department || '') + ' · ' + (userInfo.name || '') + '</div>';
+    showPage('patrol-page');
+    updateProgress();
+    renderRecords();
+}
+
+function restartPatrol() {
+    showConfirm('⚠️ 确定要清除当前巡检记录吗？\n清除后将重新开始巡检', function() {
+        document.getElementById('resume-modal').classList.remove('active');
+        cleanupPatrolData();
+        saveUserInfo();
+        // 重新获取当前部门点位
+        var allPoints = loadPoints();
+        var dept = userInfo.department;
+        currentDepartmentPoints = allPoints.filter(function(p) { return p.department === dept; });
+        console.log('🔄 重新开始，当前部门点位数量：', currentDepartmentPoints.length);
+        initPatrol();
+    }, function() {
+        // 取消，留在弹窗
+    });
+}
+
+function cleanupPatrolData() {
+    console.log('🧹 cleanupPatrolData 被调用');
+    patrolRecords = [];
+    patrolStartTime = null;
+    patrolEndTime = null;
+    randomPhotoRecords = {};
+    randomPhotoPoints = [];
+    abnormalPhotos = [];
+    summaryImageDataUrl = null;
+    // 注意：不清空 currentDepartmentPoints，保留到 initPatrol
+    clearPatrolState();
+    document.getElementById('progress-fill').style.width = '0%';
+    document.getElementById('progress-text').textContent = '0/0 点位已扫描';
+    document.getElementById('record-list').innerHTML = '<p style="text-align:center;color:#999;">暂无扫描记录</p>';
+    document.getElementById('finish-patrol-btn').disabled = true;
+}
+
+// ============================================================
+// 保存汇总到云端
+// ============================================================
+
+
+// ============================================================
+// 汇总列表
+// ============================================================
+async function loadSummaryList() {
+    var container = document.getElementById('summary-list-container');
+    container.innerHTML = '<p style="text-align:center;color:#999;">⏳ 加载中...</p>';
+    try {
+        var { data, error } = await supabase.from('patrol_summaries').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="text-align:center;color:#999;">暂无汇总记录</p>';
+            return;
+        }
+        var html = '<p class="list-count">共 ' + data.length + ' 条汇总记录</p>';
+        data.forEach(function(item) {
+            var time = item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : '--';
+            html += '<div class="list-item" style="cursor:pointer;" onclick="openSummaryCard(\'' + item.card_id + '\')">';
+            html += '<span class="list-info"><strong>' + (item.checker || '未知') + '</strong> ｜ ' + (item.department || '--') + ' ｜ 总' + (item.total_points || 0) + '点 ｜ 异常' + (item.abnormal_count || 0) + '个<br><span style="font-size:12px;color:#999;">' + time + '</span></span>';
+            html += '<span style="color:#4A90E2;font-size:20px;">›</span>';
+            html += '</div>';
+        });
+        container.innerHTML = html;
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<p style="text-align:center;color:#e74c3c;">❌ 加载失败：' + err.message + '</p>';
+    }
+}
+
+function openSummaryCard(cardId) {
+    var url = window.location.origin + '/summary.html?id=' + cardId;
+    window.open(url, '_blank');
+}
+
+// ============================================================
+// 完成巡检
+// ============================================================
+function finishPatrol() {
+    var points = currentDepartmentPoints.length ? currentDepartmentPoints : loadPoints();
+    var scanned = patrolRecords.map(function(r) { return r.address; });
+    var missed = points.filter(function(p) { return !scanned.includes(p.address); });
+    if (missed.length > 0) {
+        showAlert('以下点位未扫描：\n' + missed.map(function(p) { return p.address; }).join('\n'));
+        return;
+    }
+    if (html5QrCode) {
+        html5QrCode.stop().then(function() { html5QrCode.clear(); html5QrCode = null; }).catch(function() { html5QrCode = null; });
+    }
+    isScanning = false;
+
+    // 立即生成图片并弹出弹窗
+    generateSummaryImage();
+
+    // 云端保存：延迟到1秒后，后台执行
+    setTimeout(function() {
+        doCloudSaveInBackground();
+    }, 1000);
+}
+// ===== 待上传队列管理 =====
+function getPendingUploads() {
+    try {
+        return JSON.parse(localStorage.getItem('pending_uploads') || '[]');
+    } catch(e) {
+        return [];
+    }
+}
+
+function savePendingUploads(queue) {
+    localStorage.setItem('pending_uploads', JSON.stringify(queue));
+}
+
+function addToPendingQueue(summaryData) {
+    var queue = getPendingUploads();
+    var exists = queue.some(function(item) {
+        return item.cardId === summaryData.cardId;
+    });
+    if (exists) return;
+    queue.push(summaryData);
+    savePendingUploads(queue);
+    console.log('📥 已加入待上传队列，当前队列长度：', queue.length);
+}
+
+async function retryPendingUploads() {
+    var queue = getPendingUploads();
+    if (queue.length === 0) return;
+    
+    console.log('🔄 检测到 ' + queue.length + ' 条待上传记录，开始重试...');
+    
+    var remaining = [];
+    for (var i = 0; i < queue.length; i++) {
+        var item = queue[i];
+        try {
+            var result = await supabase.rpc('save_patrol_summary', item.rpcData);
+            if (result.error) {
+                remaining.push(item);
+            } else {
+                console.log('✅ 重试成功：', item.cardId);
+            }
+        } catch(e) {
+            remaining.push(item);
+        }
+    }
+    
+    savePendingUploads(remaining);
+    if (remaining.length === 0) {
+        console.log('✅ 所有待上传记录已成功上传');
+    } else {
+        console.log('⏳ 还有 ' + remaining.length + ' 条待上传');
+    }
+}
+// ===== 后台执行云端保存，完全不阻塞 =====
+function doCloudSaveInBackground() {
+    console.log('☁️ 开始后台保存到云端...');
+    
+    var cardId = 'S' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    var baseUrl = window.location.origin;
+    var cardUrl = baseUrl + '/summary.html?id=' + cardId;
+    
+    var abnormalList = patrolRecords.filter(function(r) { return r.status === '异常'; }).map(function(r) {
+        return {
+            address: r.address,
+            department: userInfo.department || '',
+            checker: r.checker || userInfo.name || '',
+            check_time: r.time || '',
+            note: r.note || '',
+            result_note: r.resultNote || '',
+            result_checker: '系统',
+            result_time: r.time || '',
+            photos: r.abnormalPhotos || []
+        };
+    });
+    
+    var total = patrolRecords.length;
+    var normalCount = patrolRecords.filter(function(r) { return r.status === '正常'; }).length;
+    var abnormalCount = patrolRecords.filter(function(r) { return r.status === '异常'; }).length;
+    var durationSeconds = Math.round((patrolEndTime - patrolStartTime) / 1000);
+    
+    var rpcData = {
+        p_card_id: cardId,
+        p_card_url: cardUrl,
+        p_company: userInfo.company || '',
+        p_project_name: localStorage.getItem('project_name') || '',
+        p_checker: userInfo.name || '',
+        p_department: userInfo.department || '',
+        p_check_time: new Date().toISOString(),
+        p_total_points: total,
+        p_normal_count: normalCount,
+        p_abnormal_count: abnormalCount,
+        p_duration_seconds: durationSeconds,
+        p_abnormal_list: abnormalList,
+        p_summary_data: { records: patrolRecords }
+    };
+    
+    var pendingRecord = {
+        cardId: cardId,
+        cardUrl: cardUrl,
+        rpcData: rpcData,
+        createTime: new Date().toISOString()
+    };
+    
+    supabase.rpc('save_patrol_summary', rpcData).then(function(result) {
+        if (result.error) {
+            console.error('❌ 云端保存失败:', result.error);
+            // 加入待上传队列
+            addToPendingQueue(pendingRecord);
+            // 弹窗提示用户
+            setTimeout(function() {
+                showAlert('⚠️ 巡检数据暂未上传云端\n\n已保存在本地，系统会自动重试上传。\n\n请不要清除浏览器缓存或使用无痕模式，否则数据可能丢失。');
+            }, 500);
+            return;
+        }
+        console.log('✅ 云端保存成功:', cardUrl);
+        localStorage.setItem('last_summary_url', cardUrl);
+        
+        // 成功后在弹窗里追加按钮
+        var container = document.getElementById('summary-image-container');
+        if (container) {
+            var btnHtml = '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;justify-content:center;">';
+            btnHtml += '<button onclick="window.open(\'' + cardUrl + '\',\'_blank\')" style="padding:10px 20px;background:#4A90E2;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">📊 查看云端报告</button>';
+            btnHtml += '<button onclick="saveSummaryImage()" style="padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">💾 保存图片</button>';
+            btnHtml += '<button onclick="copyCardLink(\'' + cardUrl + '\')" style="padding:10px 20px;background:#f39c12;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">📋 复制链接</button>';
+            btnHtml += '</div>';
+            container.innerHTML += btnHtml;
+        }
+    }).catch(function(err) {
+        console.error('❌ 云端保存异常:', err);
+        // 加入待上传队列
+        addToPendingQueue(pendingRecord);
+        // 弹窗提示用户
+        setTimeout(function() {
+            showAlert('⚠️ 巡检数据暂未上传云端\n\n已保存在本地，系统会自动重试上传。\n\n请不要清除浏览器缓存或使用无痕模式，否则数据可能丢失。');
+        }, 500);
+    });
+}
+
+
+
+// 新增：复制链接函数（放在 finishPatrol 后面）
+function copyCardLink(url) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function() {
+            showAlert('✅ 链接已复制');
+        }).catch(function() {
+            fallbackCopy(url);
+        });
+    } else {
+        fallbackCopy(url);
+    }
+}
+
+function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        showAlert('✅ 链接已复制');
+    } catch (e) {
+        showAlert('❌ 复制失败，请手动复制');
+    }
+    document.body.removeChild(ta);
+}
+
+// ============================================================
+// 汇总图片生成（简化版）
+// ============================================================
+function generateSummaryImage() {
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
+    
+    // ===== 画布设置 =====
+    var w = 1200;
+    var cardPadding = 30;
+    var cy = 0;
+    
+    // ===== 统一的照片宽度 =====
+    var PHOTO_WIDTH = 400;
+    // ===== 二维码尺寸 =====
+    var QR_SIZE = 200;
+    
+    var ar = patrolRecords.filter(function(r) { return r.status === '异常'; });
+    var normalRecords = patrolRecords.filter(function(r) { return r.status === '正常'; });
+    
+    // ===== 生成二维码内容 =====
+var cardId = window._currentCardId || 'S' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+// 巡检日期（用巡检开始时间的日期）
+var patrolDate = new Date(patrolStartTime);
+var dateStr = patrolDate.getFullYear() + '-' + 
+              String(patrolDate.getMonth() + 1).padStart(2, '0') + '-' + 
+              String(patrolDate.getDate()).padStart(2, '0') + ' ' +
+              String(patrolDate.getHours()).padStart(2, '0') + ':' +
+              String(patrolDate.getMinutes()).padStart(2, '0');
+var qrContent = '巡检员:' + (userInfo.name || '--') + '\n' +
+                '部门:' + (userInfo.department || '--') + '\n' +
+                '日期:' + dateStr + '\n' +
+                '总时长:' + formatDuration(Math.round((patrolEndTime - patrolStartTime) / 1000)) + '\n' +
+                'ID:' + cardId;
+    var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(qrContent);
+    
+    // ===== 收集抽检照片 =====
+    var allRandomPhotos = [];
+    var allRandomTimes = [];
+    Object.keys(randomPhotoRecords).forEach(function(key) {
+        var photos = randomPhotoRecords[key];
+        if (photos && photos.front) {
+            allRandomPhotos.push(photos.front);
+            allRandomTimes.push(photos.time || new Date().toLocaleString('zh-CN'));
+        }
+    });
+    var selectedRandomPhoto = null;
+    var selectedRandomTime = '';
+    if (allRandomPhotos.length > 0) {
+        var randomIndex = Math.floor(Math.random() * allRandomPhotos.length);
+        selectedRandomPhoto = allRandomPhotos[randomIndex];
+        selectedRandomTime = allRandomTimes[randomIndex] || new Date().toLocaleString('zh-CN');
+    }
+    
+    // ===== 收集所有需要加载的图片（含二维码） =====
+    var imagesToLoad = [];
+    if (selectedRandomPhoto) {
+        imagesToLoad.push({ type: 'random', src: selectedRandomPhoto });
+    }
+    ar.forEach(function(r) {
+        if (r.abnormalPhotos && r.abnormalPhotos.length > 0) {
+            r.abnormalPhotos.forEach(function(photoSrc) {
+                imagesToLoad.push({ type: 'abnormal', src: photoSrc, record: r });
+            });
+        }
+    });
+    // 加入二维码
+    imagesToLoad.push({ type: 'qrcode', src: qrUrl });
+    
+    // ===== 预加载所有图片 =====
+    var loadedImages = {};
+    var imagesLoaded = 0;
+    var totalImages = imagesToLoad.length;
+    
+    function loadAllImages(callback) {
+        if (totalImages === 0) {
+            callback();
+            return;
+        }
+        imagesToLoad.forEach(function(imgInfo, index) {
+            var img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function() {
+                loadedImages[index] = img;
+                imagesLoaded++;
+                if (imagesLoaded === totalImages) {
+                    callback();
+                }
+            };
+            img.onerror = function() {
+                loadedImages[index] = null;
+                imagesLoaded++;
+                if (imagesLoaded === totalImages) {
+                    callback();
+                }
+            };
+            var src = imgInfo.src;
+            if (src && !src.startsWith('data:image') && !src.startsWith('http')) {
+                src = 'data:image/jpeg;base64,' + src;
+            }
+            img.src = src;
+        });
+    }
+    
+    // ===== 格式化时间 =====
+    function formatPhotoTime(timeStr) {
+        if (!timeStr) return new Date().toLocaleString('zh-CN');
+        if (typeof timeStr === 'string' && timeStr.includes('-') && timeStr.includes(':')) {
+            return timeStr;
+        }
+        try {
+            var d = new Date(timeStr);
+            if (!isNaN(d.getTime())) {
+                return d.getFullYear() + '-' + 
+                    String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                    String(d.getDate()).padStart(2, '0') + ' ' + 
+                    String(d.getHours()).padStart(2, '0') + ':' + 
+                    String(d.getMinutes()).padStart(2, '0') + ':' + 
+                    String(d.getSeconds()).padStart(2, '0');
+            }
+        } catch(e) {}
+        return timeStr || new Date().toLocaleString('zh-CN');
+    }
+    
+    // ===== 文字换行 =====
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+        var words = text.split('');
+        var line = '';
+        var currentY = y;
+        for (var i = 0; i < words.length; i++) {
+            var testLine = line + words[i];
+            if (ctx.measureText(testLine).width > maxWidth && line.length > 0) {
+                ctx.fillText(line, x, currentY);
+                line = words[i];
+                currentY += lineHeight;
+            } else {
+                line = testLine;
+            }
+        }
+        if (line.length > 0) {
+            ctx.fillText(line, x, currentY);
+        }
+        return currentY;
+    }
+    
+    // ===== 计算异常照片总高度 =====
+    function calculateAbnormalPhotosHeight(record, imgStartIndex) {
+        if (!record.abnormalPhotos || record.abnormalPhotos.length === 0) return 0;
+        var totalHeight = 0;
+        record.abnormalPhotos.forEach(function(photoSrc, photoIdx) {
+            var imgIndex = imgStartIndex + photoIdx;
+            var abImg = loadedImages[imgIndex];
+            if (abImg) {
+                var ratio = abImg.width / abImg.height;
+                var drawW = PHOTO_WIDTH;
+                var drawH = drawW / ratio;
+                totalHeight += drawH + 15;
+            }
+        });
+        return totalHeight;
+    }
+    
+    // ===== 绘制卡片辅助函数 =====
+    function drawCardBox(x, y, width, height) {
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.08)';
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetY = 3;
+        roundRect(ctx, x, y, width, height, 35);
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+    }
+    
+    // ===== 计算汇总信息卡片高度 =====
+    function calcSummaryCardHeight() {
+        var projectName = localStorage.getItem('project_name') || '';
+        var infoLines = 5;
+        if (!projectName || projectName.trim() === '') {
+            infoLines = 4;
+        }
+        return 120 + infoLines * 65 + 4 * 65 + 60;
+    }
+    
+    // ===== 计算抽检照片卡片高度（含二维码区域） =====
+    // ===== 计算抽检照片卡片高度 =====
+function calcPhotoCardHeight() {
+    if (selectedRandomPhoto && loadedImages[0]) {
+        // 标题(120) + 照片(400) + 下方文字(90) + 底部留白(40)
+        return 120 + PHOTO_WIDTH + 90 + 40;
+    }
+    return 300;
+}
+    
+    // ===== 计算异常明细卡片高度 =====
+    function calcAbnormalCardHeight() {
+        if (ar.length === 0) {
+            return 190;
+        }
+        var totalHeight = 110;
+        var abnormalImageIndex = 0;
+        ar.forEach(function(r) {
+            var hasPhotos = r.abnormalPhotos && r.abnormalPhotos.length > 0;
+            var baseHeight = 320;
+            var photosHeight = 0;
+            if (hasPhotos) {
+                photosHeight = calculateAbnormalPhotosHeight(r, abnormalImageIndex);
+                photosHeight += 60;
+                abnormalImageIndex += r.abnormalPhotos.length;
+            }
+            totalHeight += baseHeight + photosHeight + 20;
+        });
+        return totalHeight + 30;
+    }
+    
+    // ===== 开始绘制 =====
+    function drawCard() {
+        var cardGap = 30;
+        var outerMargin = 25;
+        
+        // 卡片实际宽度 = 画布宽度 - 左右外边距 × 2，确保左右留白均匀
+        var actualContentWidth = w - outerMargin * 2;
+        
+        var summaryCardH = calcSummaryCardHeight();
+        var photoCardH = calcPhotoCardHeight();
+        var abnormalCardH = calcAbnormalCardHeight();
+        
+        var totalHeight = 30 + 150 + cardGap + summaryCardH + cardGap + photoCardH + cardGap + abnormalCardH + 100;
+        
+        canvas.width = w;
+        canvas.height = totalHeight;
+        
+        // ===== 整体背景 =====
+        ctx.fillStyle = '#f0f2f5';
+        ctx.fillRect(0, 0, w, canvas.height);
+        
+        cy = 30;
+        
+        // ===== 页眉 =====
+        ctx.fillStyle = '#1a1a2e';
+        ctx.font = 'bold 60px "Microsoft YaHei", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('📋 巡检汇总报告', w / 2, cy + 60);
+        
+        ctx.fillStyle = '#999999';
+        ctx.font = '36px "Microsoft YaHei", sans-serif';
+        ctx.fillText('生成时间：' + new Date().toLocaleString('zh-CN'), w / 2, cy + 120);
+        
+        cy = cy + 150;
+        
+        var innerX = outerMargin + cardPadding;
+        var innerWidth = actualContentWidth - cardPadding * 2;
+        
+        // ============================================
+        // 第一张卡片：📊 汇总信息
+        // ============================================
+        drawCardBox(outerMargin, cy, actualContentWidth, summaryCardH);
+        
+        ctx.fillStyle = '#4A90E2';
+        ctx.font = 'bold 44px "Microsoft YaHei", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('📊 汇总信息', innerX, cy + 70);
+        
+        var infoY = cy + 150;
+        var infoItems = [
+            ['公司名称：', localStorage.getItem('company_name') || userInfo.company || '--'],
+            ['项目名称：', localStorage.getItem('project_name') || ''],
+            ['巡检人员：', userInfo.name || '--'],
+            ['部　　门：', userInfo.department || '--'],
+            ['巡检时间：', new Date().toLocaleString('zh-CN')]
+        ];
+        
+        infoItems.forEach(function(item) {
+            if (item[0] === '项目名称：' && (!item[1] || item[1].trim() === '' || item[1] === '--')) {
+                return;
+            }
+            
+            ctx.fillStyle = '#888888';
+            ctx.font = '40px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(item[0], innerX, infoY);
+            
+            ctx.fillStyle = '#333333';
+            ctx.font = '40px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(item[1], innerX + innerWidth, infoY);
+            
+            infoY += 65;
+        });
+        
+        // 统计信息
+        var statsY = infoY;
+        var statsItems = [
+            ['总点位数：', patrolRecords.length + ' 个', '#333333'],
+            ['正　　常：', normalRecords.length + ' 个', '#27ae60'],
+            ['异　　常：', ar.length + ' 个', '#e74c3c'],
+            ['总 时 长：', formatDuration(Math.round((patrolEndTime - patrolStartTime) / 1000)), '#333333']
+        ];
+        
+        statsItems.forEach(function(item, i) {
+            var y = statsY + i * 65;
+            
+            ctx.fillStyle = '#888888';
+            ctx.font = '40px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(item[0], innerX, y);
+            
+            ctx.fillStyle = item[2];
+            ctx.font = 'bold 40px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(item[1], innerX + innerWidth, y);
+        });
+        
+        cy += summaryCardH + cardGap;
+        
+        // ============================================
+// 第二张卡片：📸 抽检照片（含二维码，右对齐）
+// ============================================
+drawCardBox(outerMargin, cy, actualContentWidth, photoCardH);
+
+ctx.fillStyle = '#4A90E2';
+ctx.font = 'bold 44px "Microsoft YaHei", sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('📸 抽检照片', innerX, cy + 70);
+
+var photoY = cy + 120;
+var randomImgIndex = -1;
+var qrImgIndex = -1;
+
+// 找到抽检照片和二维码在 loadedImages 里的位置
+imagesToLoad.forEach(function(info, idx) {
+    if (info.type === 'random') randomImgIndex = idx;
+    if (info.type === 'qrcode') qrImgIndex = idx;
+});
+
+// 二维码尺寸 = 照片的 2/3
+var QR_DISPLAY_SIZE = Math.round(PHOTO_WIDTH * 2 / 3);  // ≈ 267
+
+// 绘制抽检照片（左侧）
+if (selectedRandomPhoto && randomImgIndex >= 0 && loadedImages[randomImgIndex]) {
+    var randomImg = loadedImages[randomImgIndex];
+    var squareSize = Math.min(randomImg.width, randomImg.height);
+    var sx = (randomImg.width - squareSize) / 2;
+    var sy = (randomImg.height - squareSize) / 2;
+    var displaySize = PHOTO_WIDTH;
+    var photoBgX = innerX;
+    var photoBgY = photoY;
+    
+    ctx.drawImage(randomImg, sx, sy, squareSize, squareSize, photoBgX, photoBgY, displaySize, displaySize);
+    
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(photoBgX, photoBgY, displaySize, displaySize);
+    
+    var textX = photoBgX;
+    var textY = photoBgY + displaySize + 40;
+    
+    ctx.fillStyle = '#999999';
+    ctx.font = '34px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('随机抽检', textX, textY);
+    
+    ctx.fillStyle = '#999999';
+    ctx.font = '34px "Microsoft YaHei", sans-serif';
+    ctx.fillText(formatPhotoTime(selectedRandomTime), textX, textY + 50);
+} else {
+    ctx.fillStyle = '#999999';
+    ctx.font = '34px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('📷 本次巡检无抽检照片', innerX, photoY + 60);
+}
+
+// ===== 绘制二维码（右侧，右下对齐照片）=====
+if (qrImgIndex >= 0 && loadedImages[qrImgIndex]) {
+    var qrImg = loadedImages[qrImgIndex];
+    
+    // 二维码位置：
+    // - 右对齐卡片右侧内边距（innerX + innerWidth）
+    // - 底部对齐照片底部（photoY + PHOTO_WIDTH）
+    var qrX = innerX + innerWidth - QR_DISPLAY_SIZE;  // 右对齐
+    var qrY = photoY + PHOTO_WIDTH - QR_DISPLAY_SIZE;  // 底对齐照片底部
+    
+    ctx.drawImage(qrImg, qrX, qrY, QR_DISPLAY_SIZE, QR_DISPLAY_SIZE);
+    
+    // 二维码边框
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(qrX, qrY, QR_DISPLAY_SIZE, QR_DISPLAY_SIZE);
+    // 二维码下方提示文字（右对齐，两行）
+ctx.fillStyle = '#999999';
+ctx.font = '28px "Microsoft YaHei", sans-serif';
+ctx.textAlign = 'right';
+var textRightX = qrX + QR_DISPLAY_SIZE;  // 二维码右边缘
+var textBaseY = qrY + QR_DISPLAY_SIZE + 40;  // 二维码下方40px
+ctx.fillText('请用相机扫码', textRightX, textBaseY);
+ctx.fillText('不要用微信', textRightX, textBaseY + 38);
+}
+
+cy += photoCardH + cardGap;
+        
+        // ============================================
+        // 第三张卡片：⚠️ 异常明细
+        // ============================================
+        drawCardBox(outerMargin, cy, actualContentWidth, abnormalCardH);
+        
+        ctx.fillStyle = '#e74c3c';
+        ctx.font = 'bold 44px "Microsoft YaHei", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('⚠️ 异常明细', innerX, cy + 70);
+        
+        var abY = cy + 120;
+        
+        if (ar.length === 0) {
+            ctx.fillStyle = '#27ae60';
+            ctx.font = '40px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('✅ 本次巡检无异常', w / 2, abY + 50);
+        } else {
+            // 计算异常照片在 imagesToLoad 中的起始位置（跳过 random 和 qrcode）
+            var abnormalImageIndex = 0;
+            var skipped = 0;
+            for (var i = 0; i < imagesToLoad.length; i++) {
+                if (imagesToLoad[i].type === 'random' || imagesToLoad[i].type === 'qrcode') {
+                    skipped++;
+                } else {
+                    abnormalImageIndex = i;
+                    break;
+                }
+            }
+            
+            ar.forEach(function(r, index) {
+                var hasPhotos = r.abnormalPhotos && r.abnormalPhotos.length > 0;
+                var hasResult = r.resultNote && r.resultNote.trim();
+                var itemX = innerX;
+                var itemY = abY;
+                var itemWidth = innerWidth;
+                
+                var baseHeight = 320;
+                var photosHeight = 0;
+                if (hasPhotos) {
+                    photosHeight = calculateAbnormalPhotosHeight(r, abnormalImageIndex);
+                    photosHeight += 60;
+                }
+                var itemHeight = baseHeight + photosHeight;
+                
+                ctx.fillStyle = '#f8f9fa';
+                roundRect(ctx, itemX, itemY, itemWidth, itemHeight, 12);
+                ctx.fill();
+                
+                ctx.fillStyle = '#e74c3c';
+                roundRect(ctx, itemX, itemY, 6, itemHeight, 3);
+                ctx.fill();
+                
+                // 地址
+                ctx.fillStyle = '#1a1a2e';
+                ctx.font = 'bold 40px "Microsoft YaHei", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('📍 ' + r.address, itemX + 25, itemY + 55);
+                
+                // 元信息
+                ctx.fillStyle = '#666666';
+                ctx.font = '30px "Microsoft YaHei", sans-serif';
+                ctx.fillText('巡检人：' + (userInfo.name || '--') + ' ｜ 时间：' + r.time, itemX + 25, itemY + 105);
+                
+                // ===== 左右布局：异常情况 | 处理结果 =====
+                var twoColY = itemY + 145;
+                var colGap = 20;
+                var colWidth2 = (itemWidth - 50 - colGap) / 2;
+                var leftX = itemX + 25;
+                var rightX = leftX + colWidth2 + colGap;
+                
+                // 左栏标题
+                ctx.fillStyle = '#e74c3c';
+                ctx.font = 'bold 30px "Microsoft YaHei", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('异常情况：', leftX, twoColY);
+                
+                // 左栏内容框
+                ctx.fillStyle = '#ffffff';
+                var leftBoxY = twoColY + 15;
+                var leftBoxHeight = 100;
+                roundRect(ctx, leftX, leftBoxY, colWidth2, leftBoxHeight, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#fce4e4';
+                ctx.lineWidth = 2;
+                roundRect(ctx, leftX, leftBoxY, colWidth2, leftBoxHeight, 8);
+                ctx.stroke();
+                
+                ctx.fillStyle = '#333333';
+                ctx.font = '28px "Microsoft YaHei", sans-serif';
+                ctx.textAlign = 'left';
+                var leftText = r.abnormalNote || r.note || '未填写异常说明';
+                wrapText(ctx, leftText, leftX + 15, leftBoxY + 40, colWidth2 - 30, 36);
+                
+                // 右栏标题
+                ctx.fillStyle = '#27ae60';
+                ctx.font = 'bold 30px "Microsoft YaHei", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('处理结果：', rightX, twoColY);
+                
+                // 右栏内容框
+                ctx.fillStyle = '#ffffff';
+                var rightBoxY = twoColY + 15;
+                var rightBoxHeight = 100;
+                roundRect(ctx, rightX, rightBoxY, colWidth2, rightBoxHeight, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#d4edda';
+                ctx.lineWidth = 2;
+                roundRect(ctx, rightX, rightBoxY, colWidth2, rightBoxHeight, 8);
+                ctx.stroke();
+                
+                ctx.fillStyle = hasResult ? '#333333' : '#999999';
+                ctx.font = '28px "Microsoft YaHei", sans-serif';
+                ctx.textAlign = 'left';
+                var rightText = hasResult ? r.resultNote : '待处理';
+                wrapText(ctx, rightText, rightX + 15, rightBoxY + 40, colWidth2 - 30, 36);
+                
+                // 异常照片
+                if (hasPhotos) {
+                    var photosY = leftBoxY + leftBoxHeight + 35;
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '30px "Microsoft YaHei", sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('📷 异常照片：', itemX + 25, photosY);
+                    
+                    var photoX = itemX + 25;
+                    var photoY = photosY + 15;
+                    
+                    r.abnormalPhotos.forEach(function(photoSrc, photoIdx) {
+                        var imgIndex = abnormalImageIndex + photoIdx;
+                        var abImg = loadedImages[imgIndex];
+                        if (abImg) {
+                            var ratio = abImg.width / abImg.height;
+                            var drawW = PHOTO_WIDTH;
+                            var drawH = drawW / ratio;
+                            
+                            ctx.drawImage(abImg, photoX, photoY, drawW, drawH);
+                            
+                            ctx.strokeStyle = '#e0e0e0';
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(photoX, photoY, drawW, drawH);
+                            
+                            photoY += drawH + 15;
+                        }
+                    });
+                    abnormalImageIndex += r.abnormalPhotos.length;
+                }
+                
+                abY += itemHeight + 20;
+            });
+        }
+        
+        cy += abnormalCardH + 30;
+        
+        // ===== 页脚 =====
+        ctx.fillStyle = '#999999';
+        ctx.font = '34px "Microsoft YaHei", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('—— 报告结束 ——', w / 2, cy + 40);
+        
+        // ===== 裁剪画布 =====
+        var actualHeight = cy + 80;
+        var finalCanvas = document.createElement('canvas');
+        finalCanvas.width = w;
+        finalCanvas.height = actualHeight;
+        var finalCtx = finalCanvas.getContext('2d');
+        finalCtx.drawImage(canvas, 0, 0, w, actualHeight, 0, 0, w, actualHeight);
+        
+        // 导出为 JPEG
+        summaryImageDataUrl = finalCanvas.toDataURL('image/jpeg', 0.95);
+        
+        document.getElementById('summary-image-container').innerHTML = '<img src="' + summaryImageDataUrl + '" style="width:100%;height:auto;">';
+        document.getElementById('summary-modal').classList.add('active');
+    }
+    
+    loadAllImages(drawCard);
+}
+// ===== 辅助函数：绘制虚线 =====
+function drawDashedLine(ctx, x1, y1, x2, y2, color, lineWidth, dashLength, gapLength) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash([dashLength, gapLength]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+// ===== 辅助函数：绘制圆角矩形 =====
+function roundRect(ctx, x, y, width, height, radius) {
+    if (typeof radius === 'number') {
+        radius = { tl: radius, tr: radius, br: radius, bl: radius };
+    } else {
+        radius = { tl: 0, tr: 0, br: 0, bl: 0 };
+    }
+    ctx.beginPath();
+    ctx.moveTo(x + radius.tl, y);
+    ctx.lineTo(x + width - radius.tr, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+    ctx.lineTo(x + width, y + height - radius.br);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+    ctx.lineTo(x + radius.bl, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+    ctx.lineTo(x, y + radius.tl);
+    ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+    ctx.closePath();
+}
+
+function saveSummaryImage() {
+    if (!summaryImageDataUrl) { showAlert('汇总图片尚未生成'); return; }
+    var link = document.createElement('a');
+    link.href = summaryImageDataUrl;
+    link.download = '巡检汇总_' + userInfo.name + '_' + Date.now() + '.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showAlert('图片已保存');
+}
+
+// ============================================================
+// 配置扫描
+// ============================================================
+function startConfigScanner() {
+    showPage('scan-config-page');
+    if (configQrCode) {
+        configQrCode.stop().then(function() { configQrCode.clear(); configQrCode = null; initConfigScanner(); }).catch(function() { configQrCode = null; initConfigScanner(); });
+    } else {
+        initConfigScanner();
+    }
+}
+
+function initConfigScanner() {
+    configQrCode = new Html5Qrcode("config-qr-reader");
+    configQrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onConfigScanSuccess, onConfigScanFailure).then(function() { isConfigScanning = true; }).catch(function(err) { console.error(err); showAlert('无法启动相机'); });
+}
+
+function onConfigScanSuccess(decodedText) {
+    if (!isConfigScanning) return;
+    if (navigator.vibrate) navigator.vibrate(200);
+    playBeep();
+    if (decodedText.startsWith('B64:')) {
+        try {
+            decodedText = decodeURIComponent(escape(atob(decodedText.substring(4))));
+        } catch (e) { console.error('解码失败', e); }
+    }
+    if (decodedText.startsWith('U|DEPT:')) {
+        var parts = decodedText.split('|');
+        var deptName = parts[1].replace('DEPT:', '');
+        var names = parts[2].split(',');
+        var allUsers = loadUsers();
+        allUsers = allUsers.filter(function(u) { return u.department !== deptName; });
+        names.forEach(function(name) {
+            if (name.trim()) {
+                allUsers.push({ name: name.trim(), department: deptName });
+            }
+        });
+        saveUsers(allUsers);
+        renderUserList();
+        loadUserSelect();
+        showAlert(deptName + '人员已更新！共' + names.length + '人');
+    } else if (decodedText.startsWith('P|')) {
+        var data = decodedText.substring(2);
+        var deptMatch = data.match(/^DEPT:([^|]+)\|/);
+        var deptNameP = '';
+        var pointsData = data;
+        if (deptMatch) {
+            deptNameP = deptMatch[1];
+            pointsData = data.substring(deptMatch[0].length);
+        }
+        var pointItems = pointsData.split('|').filter(function(d) { return d.trim(); });
+        var newPoints = pointItems.map(function(d) {
+            var ci = d.indexOf(':');
+            return { address: d.substring(ci+1).trim(), department: deptNameP || '默认部门' };
+        });
+        if (deptNameP && deptNameP !== '全部') {
+            var allPoints = loadPoints();
+            allPoints = allPoints.filter(function(p) { return p.department !== deptNameP; });
+            allPoints = allPoints.concat(newPoints);
+            savePoints(allPoints);
+            showAlert(deptNameP + '点位已更新！共' + newPoints.length + '个');
+        } else {
+            savePoints(newPoints);
+            showAlert('点位列表已更新！共' + newPoints.length + '个');
+        }
+        renderPointDetail();
+        renderPointDeptButtons();
+    } else {
+        showAlert('无法识别的配置二维码');
+    }
+    isConfigScanning = false;
+    if (configQrCode) {
+        configQrCode.stop().then(function() { configQrCode.clear(); configQrCode = null; }).catch(function() { configQrCode = null; });
+    }
+    showPage('home-page');
+}
+
+function onConfigScanFailure() {}
+
+function selectConfigQR() {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = function(e) {
+        if (e.target.files.length > 0) {
+            var ts = new Html5Qrcode('config-qr-reader');
+            ts.scanFile(e.target.files[0], true).then(function(d) { onConfigScanSuccess(d); }).catch(function() { showAlert('无法识别'); }).finally(function() { ts.clear(); input.value = ''; });
+        }
+    };
+    input.click();
+}
+
+function stopConfigScanner() {
+    if (configQrCode) {
+        configQrCode.stop().then(function() { configQrCode.clear(); configQrCode = null; }).catch(function() { configQrCode = null; });
+    }
+    isConfigScanning = false;
+    showPage('home-page');
+}
+
+// ============================================================
+// 异常照片
+// ============================================================
+function addAbnormalPhoto(file) {
+    if (abnormalPhotos.length >= 1) { showAlert('最多1张'); return; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var img = new Image();
+        img.onload = function() {
+            var c = document.createElement('canvas');
+            var ms = 600;
+            var w = img.width, h = img.height;
+            if (w > h) {
+                if (w > ms) { h = h * (ms / w); w = ms; }
+            } else {
+                if (h > ms) { w = w * (ms / h); h = ms; }
+            }
+            c.width = w;
+            c.height = h;
+            c.getContext('2d').drawImage(img, 0, 0, w, h);
+            abnormalPhotos.push(c.toDataURL('image/jpeg', 0.8));
+            renderAbnormalPhotos();
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function renderAbnormalPhotos() {
+    var c = document.getElementById('abnormal-photos');
+    if (!c) return;
+    c.innerHTML = '';
+    abnormalPhotos.forEach(function(ph, i) {
+        var item = document.createElement('div');
+        item.className = 'abnormal-photo-item';
+        item.innerHTML = '<img src="' + ph + '"><button class="abnormal-photo-remove" onclick="removeAbnormalPhoto(' + i + ')">×</button>';
+        c.appendChild(item);
+    });
+    if (abnormalPhotos.length < 1) {
+        var ab = document.createElement('div');
+        ab.className = 'abnormal-photo-add';
+        ab.id = 'add-abnormal-photo';
+        ab.textContent = '+';
+        ab.onclick = function() { document.getElementById('abnormal-photo-input').click(); };
+        c.appendChild(ab);
+    }
+}
+
+function removeAbnormalPhoto(i) {
+    abnormalPhotos.splice(i, 1);
+    renderAbnormalPhotos();
+}
+
+// ============================================================
+// 编辑巡检记录
+// ============================================================
+function openEditRecord(index) {
+    editRecordIndex = index;
+    var r = patrolRecords[index];
+    showStatusSelect(r.address, r.status);
+}
+
+function showStatusSelect(address, currentStatus) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;padding:24px 28px;border-radius:14px;max-width:85%;min-width:280px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+    var title = document.createElement('h3');
+    title.style.cssText = 'margin-bottom:8px;font-size:18px;color:#333;';
+    title.textContent = '📍 ' + address;
+    var subTitle = document.createElement('p');
+    subTitle.style.cssText = 'margin-bottom:18px;font-size:14px;color:#999;';
+    subTitle.textContent = '当前状态：' + currentStatus;
+    var btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+    var normalBtn = document.createElement('button');
+    normalBtn.style.cssText = 'padding:12px 24px;background:#27ae60;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;';
+    normalBtn.textContent = '✅ 正常';
+    normalBtn.onclick = function() {
+        overlay.remove();
+        var r = patrolRecords[editRecordIndex];
+        r.status = '正常';
+        r.abnormalNote = '';
+        r.abnormalPhotos = [];
+        r.resultNote = '';
+        savePatrolState();
+        renderRecords();
+        updateProgress();
+        showAlert('已更新为正常状态');
+    };
+    var abnormalBtn = document.createElement('button');
+    abnormalBtn.style.cssText = 'padding:12px 24px;background:#e74c3c;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;';
+    abnormalBtn.textContent = '⚠️ 异常';
+    abnormalBtn.onclick = function() {
+        overlay.remove();
+        var r = patrolRecords[editRecordIndex];
+        editRecordPhotos = r.abnormalPhotos ? r.abnormalPhotos.slice() : [];
+        document.getElementById('edit-record-address').textContent = r.address;
+        document.getElementById('edit-record-note').value = r.abnormalNote || r.note || '';
+        document.getElementById('edit-record-result').value = r.resultNote || '';
+        renderEditRecordPhotos();
+        document.getElementById('edit-record-modal').style.display = 'flex';
+        document.getElementById('edit-record-modal').classList.add('active');
+    };
+    btnWrap.appendChild(normalBtn);
+    btnWrap.appendChild(abnormalBtn);
+    box.appendChild(title);
+    box.appendChild(subTitle);
+    box.appendChild(btnWrap);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+}
+
+function renderEditRecordPhotos() {
+    var c = document.getElementById('edit-record-photos');
+    c.innerHTML = '';
+    editRecordPhotos.forEach(function(ph, i) {
+        var item = document.createElement('div');
+        item.className = 'abnormal-photo-item';
+        item.innerHTML = '<img src="' + ph + '"><button class="abnormal-photo-remove" onclick="removeEditPhoto(' + i + ')">×</button>';
+        c.appendChild(item);
+    });
+    if (editRecordPhotos.length < 1) {
+        var ab = document.createElement('div');
+        ab.className = 'abnormal-photo-add';
+        ab.id = 'add-edit-photo';
+        ab.textContent = '+';
+        ab.onclick = function() { document.getElementById('edit-photo-input').click(); };
+        c.appendChild(ab);
+    }
+}
+
+function removeEditPhoto(i) {
+    editRecordPhotos.splice(i, 1);
+    renderEditRecordPhotos();
+}
+
+function saveEditRecord() {
+    var r = patrolRecords[editRecordIndex];
+    r.status = '异常';
+    r.abnormalNote = document.getElementById('edit-record-note').value.trim();
+    r.abnormalPhotos = editRecordPhotos.slice();
+    r.resultNote = document.getElementById('edit-record-result').value.trim();
+    document.getElementById('edit-record-modal').style.display = 'none';
+    document.getElementById('edit-record-modal').classList.remove('active');
+    savePatrolState();
+    renderRecords();
+    updateProgress();
+    showAlert('修改成功！');
+}
+
+// ============================================================
+// 页面初始化（修复版）
+// ============================================================
+function initApp() {
+    console.log('🚀 应用初始化开始...');
+    try {
+        // ---- 双击标题进入管理（核心功能） ----
+        var homeHeader = document.getElementById('home-header');
+        if (homeHeader) {
+            homeHeader.addEventListener('dblclick', function(e) {
+                console.log('🔄 双击标题，进入管理中心');
+                showPage('admin-page');
+                // 检查是否已登录（30秒内有效）
+                if (Date.now() - adminLoginTime < 30000) {
+                    document.getElementById('login-panel').style.display = 'none';
+                    document.getElementById('admin-menu').style.display = 'block';
+                } else {
+                    document.getElementById('login-panel').style.display = 'block';
+                    document.getElementById('admin-menu').style.display = 'none';
+                    document.getElementById('admin-password-input').value = '';
+                }
+            });
+            // 防止误触：单击不做任何事
+            homeHeader.addEventListener('click', function(e) {
+                // 不做任何跳转，只保留双击功能
+            });
+        }
+
+        // ---- 管理员登录 ----
+        var adminLoginBtn = document.getElementById('admin-login-btn');
+        if (adminLoginBtn) {
+            adminLoginBtn.addEventListener('click', function() {
+                var pwd = document.getElementById('admin-password-input').value;
+                if (pwd === adminPassword) {
+                    adminLoginTime = Date.now();
+                    document.getElementById('login-panel').style.display = 'none';
+                    document.getElementById('admin-menu').style.display = 'block';
+                    showAlert('登录成功！');
+                } else {
+                    showAlert('密码错误！');
+                }
+            });
+        }
+// ---- 公司名称管理 ----
+var menuCompany = document.getElementById('menu-company');
+if (menuCompany) {
+    menuCompany.addEventListener('click', function() {
+        document.getElementById('company-type-modal').classList.add('active');
+    });
+}
+
+// 选择"公司"类型
+var companyTypeBtn = document.getElementById('company-type-btn');
+if (companyTypeBtn) {
+    companyTypeBtn.addEventListener('click', function() {
+        document.getElementById('company-type-modal').classList.remove('active');
+        document.getElementById('company-name-modal-title').textContent = '填写公司名称';
+        document.getElementById('company-name-input').value = localStorage.getItem('company_name') || '';
+        document.getElementById('company-name-input').dataset.type = 'company';
+        document.getElementById('company-name-modal').classList.add('active');
+    });
+}
+
+// 选择"项目"类型
+var projectTypeBtn = document.getElementById('project-type-btn');
+if (projectTypeBtn) {
+    projectTypeBtn.addEventListener('click', function() {
+        document.getElementById('company-type-modal').classList.remove('active');
+        document.getElementById('company-name-modal-title').textContent = '填写项目名称';
+        document.getElementById('company-name-input').value = localStorage.getItem('project_name') || '';
+        document.getElementById('company-name-input').dataset.type = 'project';
+        document.getElementById('company-name-modal').classList.add('active');
+    });
+}
+
+// 保存名称
+// 保存名称
+var saveCompanyNameBtn = document.getElementById('save-company-name-btn');
+if (saveCompanyNameBtn) {
+    saveCompanyNameBtn.addEventListener('click', function() {
+        var name = document.getElementById('company-name-input').value.trim();
+        var type = document.getElementById('company-name-input').dataset.type;
+        
+        if (type === 'company') {
+            // 公司名称必须填写
+            if (!name) {
+                showAlert('请输入公司名称');
+                return;
+            }
+            localStorage.setItem('company_name', name);
+            showAlert('公司名称保存成功：' + name);
+        } else if (type === 'project') {
+            // 项目名称可以为空（用于清空）
+            if (name) {
+                localStorage.setItem('project_name', name);
+                showAlert('项目名称保存成功：' + name);
+            } else {
+                // 清空项目名称
+                localStorage.removeItem('project_name');
+                showAlert('项目名称已清空，汇总报告将不显示该行');
+            }
+        }
+        document.getElementById('company-name-modal').classList.remove('active');
+    });
+}
+
+// 取消保存
+var cancelCompanyNameBtn = document.getElementById('cancel-company-name-btn');
+if (cancelCompanyNameBtn) {
+    cancelCompanyNameBtn.addEventListener('click', function() {
+        document.getElementById('company-name-modal').classList.remove('active');
+    });
+}
+        // ---- 返回首页（从管理中心返回） ----
+        var adminBackBtn = document.getElementById('admin-back-home-btn');
+        if (adminBackBtn) {
+            adminBackBtn.addEventListener('click', function() {
+                console.log('🔙 从管理中心返回首页');
+                showPage('home-page');
+                // 不重置登录状态，保持登录有效期内再次双击可直接进入
+            });
+        }
+
+        // ---- 退出登录（直接回到首页） ----
+        var logoutBtn = document.getElementById('admin-logout-btn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', function() {
+        console.log('🚪 退出登录，回到首页');
+        // 不重置 adminLoginTime，保持30秒免登录
+        // adminLoginTime = 0;  // 注释掉这行
+        document.getElementById('login-panel').style.display = 'block';
+        document.getElementById('admin-menu').style.display = 'none';
+        document.getElementById('admin-password-input').value = '';
+        showPage('home-page');
+        showAlert('已退出登录，30秒内可免密码重新进入');
+    });
+}
+
+        // ---- 各子页面的返回按钮（回到管理中心） ----
+        var subBackBtns = ['points-back-btn', 'departments-back-btn', 'users-back-btn', 'password-back-btn', 'summary-back-btn'];
+        subBackBtns.forEach(function(id) {
+            var btn = document.getElementById(id);
+            if (btn) {
+                btn.addEventListener('click', function() {
+                    console.log('🔙 从子页面返回管理中心');
+                    showPage('admin-page');
+                    // 保持登录状态
+                    if (Date.now() - adminLoginTime < 30000) {
+                        document.getElementById('login-panel').style.display = 'none';
+                        document.getElementById('admin-menu').style.display = 'block';
+                    } else {
+                        document.getElementById('login-panel').style.display = 'block';
+                        document.getElementById('admin-menu').style.display = 'none';
+                    }
+                });
+            }
+        });
+
+        // ---- 开始巡检 ----
+        var startPatrolBtn = document.getElementById('start-patrol-btn');
+        if (startPatrolBtn) {
+            startPatrolBtn.addEventListener('click', startPatrol);
+        }
+
+        // ---- 开始扫码 ----
+        var startScanBtn = document.getElementById('start-scan-btn');
+        if (startScanBtn) {
+            startScanBtn.addEventListener('click', function() { startScanner(); });
+        }
+
+        // ---- 扫描配置 ----
+        var scanConfigBtn = document.getElementById('scan-config-btn');
+        if (scanConfigBtn) {
+            scanConfigBtn.addEventListener('click', startConfigScanner);
+        }
+
+        // ---- 退出巡检 ----
+        var exitPatrolBtn = document.getElementById('exit-patrol-btn');
+        if (exitPatrolBtn) {
+            exitPatrolBtn.addEventListener('click', exitPatrol);
+        }
+      
+        // ---- 配置扫描返回 ----
+        var scanConfigBack = document.getElementById('scan-config-back-btn');
+        if (scanConfigBack) {
+            scanConfigBack.addEventListener('click', stopConfigScanner);
+        }
+        
+        var stopConfigScan = document.getElementById('stop-config-scan-btn');
+        if (stopConfigScan) {
+            stopConfigScan.addEventListener('click', stopConfigScanner);
+        }
+
+        // ---- 姓名选择 ----
+        var nameSelect = document.getElementById('name-select');
+        if (nameSelect) {
+            nameSelect.addEventListener('change', function(e) {
+                var u = loadUsers().find(function(x) { return x.name === e.target.value; });
+                if (u) document.getElementById('department-input').value = u.department;
+            });
+        }
+
+        // ---- 后台菜单 ----
+        var menuPoints = document.getElementById('menu-points');
+        if (menuPoints) {
+            menuPoints.addEventListener('click', function() {
+                loadPointDeptSelect();
+                renderPointDeptButtons();
+                renderPointDetail();
+                showPage('points-page');
+            });
+        }
+
+        var menuDepts = document.getElementById('menu-departments');
+        if (menuDepts) {
+            menuDepts.addEventListener('click', function() {
+                renderDepartmentList();
+                showPage('departments-page');
+            });
+        }
+
+        var menuUsers = document.getElementById('menu-users');
+        if (menuUsers) {
+            menuUsers.addEventListener('click', function() {
+                renderDeptTabs();
+                renderUserList();
+                showPage('users-page');
+            });
+        }
+
+        var menuSummary = document.getElementById('menu-summary');
+        if (menuSummary) {
+            menuSummary.addEventListener('click', function() {
+                showPage('summary-list-page');
+                loadSummaryList();
+            });
+        }
+
+        var menuPassword = document.getElementById('menu-password');
+        if (menuPassword) {
+            menuPassword.addEventListener('click', function() { showPage('password-page'); });
+        }
+
+        // ---- 点位管理 ----
+        var addPointBtn = document.getElementById('add-point-btn');
+        if (addPointBtn) {
+            addPointBtn.addEventListener('click', addPoint);
+        }
+
+        var saveEditPointBtn = document.getElementById('save-edit-point-btn');
+        if (saveEditPointBtn) {
+            saveEditPointBtn.addEventListener('click', saveEditPoint);
+        }
+
+        var deletePointBtn = document.getElementById('delete-point-btn');
+        if (deletePointBtn) {
+            deletePointBtn.addEventListener('click', deletePointFromEdit);
+        }
+
+        // ---- 部门管理 ----
+        var addDeptBtn = document.getElementById('add-department-btn');
+        if (addDeptBtn) {
+            addDeptBtn.addEventListener('click', addDepartment);
+        }
+
+        // ---- 人员管理 ----
+        var addUserBtn = document.getElementById('add-user-btn');
+        if (addUserBtn) {
+            addUserBtn.addEventListener('click', addUser);
+        }
+
+        var saveEditBtn = document.getElementById('save-edit-btn');
+        if (saveEditBtn) {
+            saveEditBtn.addEventListener('click', saveEdit);
+        }
+
+        // ---- 二维码 ----
+        var saveQrBtn = document.getElementById('save-qr-btn');
+        if (saveQrBtn) {
+            saveQrBtn.addEventListener('click', saveQRToAlbum);
+        }
+
+        var closeQrBtn = document.getElementById('close-qr-btn');
+        if (closeQrBtn) {
+            closeQrBtn.addEventListener('click', function() {
+                document.getElementById('qr-modal').classList.remove('active');
+            });
+        }
+
+        
+
+        // ---- 修改密码 ----
+        var changePwdBtn = document.getElementById('change-password-btn');
+        if (changePwdBtn) {
+            changePwdBtn.addEventListener('click', changePassword);
+        }
+
+        // ---- 扫描模态框 ----
+        // ---- 扫描模态框 ----
+var normalBtn = document.getElementById('normal-btn');
+if (normalBtn) {
+    normalBtn.onclick = function() {
+        document.getElementById('scan-modal').classList.remove('active');
+        recordScan('正常');
+    };
+}
+
+var abnormalBtn = document.getElementById('abnormal-btn');
+if (abnormalBtn) {
+    abnormalBtn.onclick = function() {
+        document.getElementById('scan-modal').classList.remove('active');
+        abnormalPhotos = [];
+        document.getElementById('abnormal-note').value = '';
+        document.getElementById('result-note').value = '';
+        renderAbnormalPhotos();
+        document.getElementById('abnormal-modal').classList.add('active');
+    };
+}
+
+var confirmAbnormalBtn = document.getElementById('confirm-abnormal-btn');
+if (confirmAbnormalBtn) {
+    confirmAbnormalBtn.onclick = function() {  // 改为 onclick
+        var n = document.getElementById('abnormal-note').value.trim();
+        document.getElementById('abnormal-modal').classList.remove('active');
+        recordScan('异常', n);
+    };
+}
+
+var laterAbnormalBtn = document.getElementById('later-abnormal-btn');
+if (laterAbnormalBtn) {
+    laterAbnormalBtn.onclick = function() {  // 改为 onclick
+        document.getElementById('abnormal-modal').classList.remove('active');
+        recordScan('异常', '');
+        isScanning = true;
+    };
+}
+
+        var abnormalPhotoInput = document.getElementById('abnormal-photo-input');
+        if (abnormalPhotoInput) {
+            abnormalPhotoInput.addEventListener('change', function(e) {
+                for (var i = 0; i < e.target.files.length; i++) {
+                    addAbnormalPhoto(e.target.files[i]);
+                    if (abnormalPhotos.length >= 1) break;
+                }
+                e.target.value = '';
+            });
+        }
+
+        var addAbnormalPhotoEl = document.getElementById('add-abnormal-photo');
+        if (addAbnormalPhotoEl) {
+            addAbnormalPhotoEl.addEventListener('click', function() {
+                document.getElementById('abnormal-photo-input').click();
+            });
+        }
+
+        // ---- 编辑记录 ----
+        var addEditPhotoEl = document.getElementById('add-edit-photo');
+        if (addEditPhotoEl) {
+            addEditPhotoEl.addEventListener('click', function() {
+                document.getElementById('edit-photo-input').click();
+            });
+        }
+
+        var editPhotoInput = document.getElementById('edit-photo-input');
+        if (editPhotoInput) {
+            editPhotoInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    var reader = new FileReader();
+                    reader.onload = function(ev) {
+                        var img = new Image();
+                        img.onload = function() {
+                            var c = document.createElement('canvas');
+                            var ms = 600;
+                            var w = img.width, h = img.height;
+                            if (w > h) {
+                                if (w > ms) { h = h * (ms / w); w = ms; }
+                            } else {
+                                if (h > ms) { w = w * (ms / h); h = ms; }
+                            }
+                            c.width = w;
+                            c.height = h;
+                            c.getContext('2d').drawImage(img, 0, 0, w, h);
+                            editRecordPhotos = [c.toDataURL('image/jpeg', 0.8)];
+                            renderEditRecordPhotos();
+                        };
+                        img.src = ev.target.result;
+                    };
+                    reader.readAsDataURL(e.target.files[0]);
+                }
+                e.target.value = '';
+            });
+        }
+
+        var saveRecordBtn = document.getElementById('save-record-btn');
+        if (saveRecordBtn) {
+            saveRecordBtn.addEventListener('click', function() { saveEditRecord(); });
+        }
+
+        // ---- 完成巡检 ----
+        var finishPatrolBtn = document.getElementById('finish-patrol-btn');
+        if (finishPatrolBtn) {
+            finishPatrolBtn.addEventListener('click', finishPatrol);
+        }
+
+        // ---- 汇总 ----
+        var saveSummaryBtn = document.getElementById('save-summary-btn');
+        if (saveSummaryBtn) {
+            saveSummaryBtn.addEventListener('click', saveSummaryImage);
+        }
+
+        var closeSummaryBtn = document.getElementById('close-summary-btn');
+        if (closeSummaryBtn) {
+            closeSummaryBtn.addEventListener('click', function() {
+                document.getElementById('summary-modal').classList.remove('active');
+                showPage('home-page');
+            });
+        }
+
+        // ---- 恢复巡检 ----
+        var resumePatrolBtn = document.getElementById('resume-patrol-btn');
+        if (resumePatrolBtn) {
+            resumePatrolBtn.addEventListener('click', resumePatrol);
+        }
+
+        var restartPatrolBtn = document.getElementById('restart-patrol-btn');
+        if (restartPatrolBtn) {
+            restartPatrolBtn.addEventListener('click', restartPatrol);
+        }
+
+        // ---- 加载数据 ----
+loadUserInfo();
+renderAbnormalPhotos();
+migratePointsData();
+
+
+
+        // ---- 确保"稍后填写"按钮可见 ----
+        var laterBtn = document.getElementById('later-abnormal-btn');
+        if (laterBtn) {
+            laterBtn.style.cssText = 'display:block !important; visibility:visible !important; opacity:1 !important; flex:1; margin-bottom:0;';
+        }
+
+        console.log('✅ 应用初始化完成！');
+    } catch (e) {
+        console.error('❌ 初始化出错：', e);
+        showAlert('页面加载出错，请刷新后重试');
+    }
+}
+
+function migratePointsData() {
+    var points = loadPoints();
+    var needSave = false;
+    var defaultDept = '默认部门';
+    var depts = loadDepartments();
+    if (!depts.length) {
+        depts.push({ name: defaultDept });
+        saveDepartments(depts);
+        loadDepartmentSelect();
+        renderDeptTabs();
+    }
+    points.forEach(function(p) {
+        if (!p.department) {
+            p.department = defaultDept;
+            needSave = true;
+        }
+    });
+    if (needSave) {
+        savePoints(points);
+    }
+    loadPointDeptSelect();
+    renderPointDeptButtons();
+    renderPointDetail();
+}
+
+// ---- 启动应用（双重保障） ----
+// ---- 启动应用（只执行一次） ----
+window._appInited = false;
+
+function safeInitApp() {
+    if (window._appInited) {
+        console.log('⚠️ initApp 已执行过，跳过');
+        return;
+    }
+    window._appInited = true;
+    initApp();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', safeInitApp);
+} else {
+    safeInitApp();
+}
+
+console.log('📦 脚本加载完成，等待页面就绪...');
+</script>
+</body>
+</html>
