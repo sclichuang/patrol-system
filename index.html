@@ -1789,43 +1789,44 @@ function doCloudSaveInBackground() {
         createTime: new Date().toISOString()
     };
     
-    supabase.rpc('save_patrol_summary', rpcData).then(function(result) {
-        if (result.error) {
-            console.error('❌ 云端保存失败:', result.error);
-            // 加入待上传队列
-            addToPendingQueue(pendingRecord);
-            // 弹窗提示用户
-            setTimeout(function() {
-                showAlert('⚠️ 巡检数据暂未上传云端\n\n已保存在本地，系统会自动重试上传。\n\n请不要清除浏览器缓存或使用无痕模式，否则数据可能丢失。');
-            }, 500);
-            return;
-        }
-        console.log('✅ 云端保存成功:', cardUrl);
-        localStorage.setItem('last_summary_url', cardUrl);
-        
-        // 成功后在弹窗里追加按钮
-        var container = document.getElementById('summary-image-container');
-        if (container) {
-            var btnHtml = '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;justify-content:center;">';
-            btnHtml += '<button onclick="window.open(\'' + cardUrl + '\',\'_blank\')" style="padding:10px 20px;background:#4A90E2;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">📊 查看云端报告</button>';
-            btnHtml += '<button onclick="saveSummaryImage()" style="padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">💾 保存图片</button>';
-            btnHtml += '<button onclick="copyCardLink(\'' + cardUrl + '\')" style="padding:10px 20px;background:#f39c12;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">📋 复制链接</button>';
-            btnHtml += '</div>';
-            container.innerHTML += btnHtml;
-        }
-    }).catch(function(err) {
-        console.error('❌ 云端保存异常:', err);
-        // 加入待上传队列
-        addToPendingQueue(pendingRecord);
-        // 弹窗提示用户
-        setTimeout(function() {
-            showAlert('⚠️ 巡检数据暂未上传云端\n\n已保存在本地，系统会自动重试上传。\n\n请不要清除浏览器缓存或使用无痕模式，否则数据可能丢失。');
-        }, 500);
-    });
+    fetch('https://szljctcwzewuyxbtotov.supabase.co/rest/v1/rpc/save_patrol_summary', {
+    method: 'POST',
+    headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify(rpcData)
+})
+.then(function(response) {
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+    return response.text();
+})
+.then(function() {
+    console.log('✅ 云端保存成功:', cardUrl);
+    localStorage.setItem('last_summary_url', cardUrl);
+    
+    var container = document.getElementById('summary-image-container');
+    if (container) {
+        var btnHtml = '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;justify-content:center;">';
+        btnHtml += '<button onclick="window.open(\'' + cardUrl + '\',\'_blank\')" style="padding:10px 20px;background:#4A90E2;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">📊 查看云端报告</button>';
+        btnHtml += '<button onclick="saveSummaryImage()" style="padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">💾 保存图片</button>';
+        btnHtml += '<button onclick="copyCardLink(\'' + cardUrl + '\')" style="padding:10px 20px;background:#f39c12;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">📋 复制链接</button>';
+        btnHtml += '</div>';
+        container.innerHTML += btnHtml;
+    }
+})
+.catch(function(err) {
+    console.error('❌ 云端保存异常:', err);
+    addToPendingQueue(pendingRecord);
+    setTimeout(function() {
+        showAlert('⚠️ 巡检数据暂未上传云端\n\n已保存在本地，系统会自动重试上传。');
+    }, 500);
+});
 }
-
-
-
 // 新增：复制链接函数（放在 finishPatrol 后面）
 function copyCardLink(url) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
