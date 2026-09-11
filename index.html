@@ -1491,11 +1491,21 @@ function recordScan(status, note) {
                 
                 savePatrolState();
                 isScanning = true;
-                setTimeout(function() { 
-                    if (!html5QrCode) {
-                        initScanner(); 
-                    }
-                }, 500);
+setTimeout(function() { 
+    // 强制重新初始化扫码器，确保绑定成功
+    if (html5QrCode) {
+        html5QrCode.stop().then(function() {
+            html5QrCode.clear();
+            html5QrCode = null;
+            initScanner();
+        }).catch(function() {
+            html5rCode = null;
+            initScanner();
+        });
+    } else {
+        initScanner();
+    }
+}, 500);
             });
         });
     } else {
